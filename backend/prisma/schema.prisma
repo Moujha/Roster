@@ -1,0 +1,404 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ARTIST DOMAIN
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ArtistTier {
+  S // Superstar  50M+ monthly listeners
+  A // A-List     10-50M
+  B // Established 1-10M
+  C // Rising     100k-1M
+  D // Emerging   <100k
+}
+
+enum Genre {
+  POP
+  HIP_HOP
+  R_AND_B
+  ELECTRONIC
+  ROCK
+  INDIE
+  LATIN
+  AFROBEATS
+  K_POP
+  COUNTRY
+  JAZZ
+  CLASSICAL
+  OTHER
+}
+
+model Artist {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  tier              ArtistTier
+  genre             Genre
+  country           String?
+  imageUrl          String?
+
+  // External IDs
+  spotifyId         String?  @unique
+  youtubeChannelId  String?  @unique
+  instagramHandle   String?  @unique
+  tiktokHandle      String?  @unique
+  lastfmName        String?
+
+  // Current cached metrics (updated by workers)
+  monthlyListeners  Int      @default(0)
+  weeklyStreams     Int      @default(0)
+  instagramFollowers Int     @default(0)
+  instagramEngagement Float  @default(0)
+  tiktokFollowers   Int      @default(0)
+  youtubeSubscribers Int     @default(0)
+
+  // Game economics
+  marketValue       BigInt   @default(0)    // in GR (Gold Records)
+  weeklyScore       Int      @default(0)    // latest gameweek score
+  totalScore        Int      @default(0)    // all-time
+
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  metrics           ArtistMetricsSnapshot[]
+  teamArtists       TeamArtist[]
+  marketListings    MarketListing[]
+  deals             ArtistDeal[]
+  chartEntries      ChartEntry[]
+
+  @@index([tier])
+  @@index([genre])
+  @@index([monthlyListeners])
+  @@index([weeklyScore])
+}
+
+model ArtistMetricsSnapshot {
+  id                    String   @id @default(cuid())
+  artistId              String
+  artist                Artist   @relation(fields: [artistId], references: [id])
+
+  snapshotDate          DateTime @db.Date
+  gameweekId            String?
+  gameweek              Gameweek? @relation(fields: [gameweekId], references: [id])
+
+  // Streaming
+  monthlyListeners      Int      @default(0)
+  weeklyStreams         Int      @default(0)
+  streamGrowthPct       Float    @default(0)
+
+  // Social
+  instagramFollowers    Int      @default(0)
+  instagramEngagement   Float    @default(0)
+  tiktokFollowers       Int      @default(0)
+  tiktokSoundUses       Int      @default(0)
+  youtubeSubscribers    Int      @default(0)
+  youtubeWeeklyViews    Int      @default(0)
+
+  // Charts
+  spotifyGlobalPeak     Int?
+  billboardHot100Peak   Int?
+
+  // Calculated
+  weeklyPoints          Int      @default(0)
+  pointsBreakdown       Json?    // detailed breakdown per category
+
+  createdAt             DateTime @default(now())
+
+  @@unique([artistId, snapshotDate])
+  @@index([snapshotDate])
+  @@index([gameweekId])
+}
+
+model ChartEntry {
+  id         String   @id @default(cuid())
+  artistId   String
+  artist     Artist   @relation(fields: [artistId], references: [id])
+  chart      String   // "spotify_global", "billboard_hot100", "apple_music_global", etc.
+  position   Int
+  trackName  String
+  weekOf     DateTime @db.Date
+  createdAt  DateTime @default(now())
+
+  @@index([artistId, chart, weekOf])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USER & AUTH
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  avatarUrl    String?
+  balance      BigInt   @default(100000000) // 100M GR starting budget
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teams        Team[]
+  leagueMemberships LeagueMember[]
+  sentOffers   TradeOffer[]  @relation("SentOffers")
+  receivedOffers TradeOffer[] @relation("ReceivedOffers")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEAGUE & GAMEWEEK
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum LeagueType {
+  CLASSIC      // head-to-head weekly matchups
+  CUMULATIVE   // open ranking by total points
+  DRAFT        // snake draft, exclusive ownership
+  GRAND_PRIX   // short 4-week sprint
+}
+
+enum LeagueStatus {
+  SETUP
+  DRAFT
+  ACTIVE
+  COMPLETED
+}
+
+model League {
+  id           String       @id @default(cuid())
+  name         String
+  code         String       @unique // 6-char invite code
+  type         LeagueType
+  status       LeagueStatus @default(SETUP)
+  maxTeams     Int          @default(12)
+  season       Int          @default(1)
+  prizePool    BigInt       @default(0)
+
+  draftDate    DateTime?
+  startDate    DateTime?
+  endDate      DateTime?
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  members      LeagueMember[]
+  gameweeks    Gameweek[]
+  matchups     Matchup[]
+}
+
+model LeagueMember {
+  id          String   @id @default(cuid())
+  leagueId    String
+  league      League   @relation(fields: [leagueId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  teamId      String?
+  team        Team?    @relation(fields: [teamId], references: [id])
+  rank        Int      @default(0)
+  totalPoints Int      @default(0)
+  isOwner     Boolean  @default(false)
+  joinedAt    DateTime @default(now())
+
+  @@unique([leagueId, userId])
+}
+
+model Gameweek {
+  id          String   @id @default(cuid())
+  leagueId    String
+  league      League   @relation(fields: [leagueId], references: [id])
+  number      Int
+  startDate   DateTime
+  endDate     DateTime
+  isScored    Boolean  @default(false)
+  scoredAt    DateTime?
+
+  matchups    Matchup[]
+  snapshots   ArtistMetricsSnapshot[]
+
+  @@unique([leagueId, number])
+}
+
+model Matchup {
+  id            String   @id @default(cuid())
+  leagueId      String
+  league        League   @relation(fields: [leagueId], references: [id])
+  gameweekId    String
+  gameweek      Gameweek @relation(fields: [gameweekId], references: [id])
+  homeTeamId    String
+  homeTeam      Team     @relation("HomeMatchups", fields: [homeTeamId], references: [id])
+  awayTeamId    String
+  awayTeam      Team     @relation("AwayMatchups", fields: [awayTeamId], references: [id])
+  homePoints    Int      @default(0)
+  awayPoints    Int      @default(0)
+  winnerId      String?
+
+  @@unique([gameweekId, homeTeamId, awayTeamId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEAM & ROSTER
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Team {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  name         String
+  logoUrl      String?
+  totalPoints  Int      @default(0)
+  weeklyPoints Int      @default(0)
+  budget       BigInt   @default(100000000)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  artists      TeamArtist[]
+  leagueMemberships LeagueMember[]
+  homeMatchups Matchup[] @relation("HomeMatchups")
+  awayMatchups Matchup[] @relation("AwayMatchups")
+  sentOffers   TradeOffer[] @relation("OfferFrom")
+  receivedOffers TradeOffer[] @relation("OfferTo")
+  marketListings MarketListing[]
+}
+
+enum ContractType {
+  STANDARD
+  EXCLUSIVE   // no other manager can sign them (1.5x cost)
+  DEVELOPMENT // long-term; artist point multiplier over time
+  THREE_SIXTY // includes touring/merch bonus points (2x cost)
+}
+
+model TeamArtist {
+  id             String       @id @default(cuid())
+  teamId         String
+  team           Team         @relation(fields: [teamId], references: [id])
+  artistId       String
+  artist         Artist       @relation(fields: [artistId], references: [id])
+  contractType   ContractType @default(STANDARD)
+  purchasePrice  BigInt
+  weeklySalary   BigInt
+  contractWeeks  Int          @default(0) // 0 = unlimited
+  weeksSigned    Int          @default(0)
+  isActive       Boolean      @default(true)
+  isCaptain      Boolean      @default(false) // 2x points
+  signedAt       DateTime     @default(now())
+  releasedAt     DateTime?
+
+  @@unique([teamId, artistId, isActive])
+  @@index([teamId, isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSFER MARKET
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ListingStatus {
+  OPEN
+  SOLD
+  EXPIRED
+  CANCELLED
+}
+
+model MarketListing {
+  id          String        @id @default(cuid())
+  artistId    String
+  artist      Artist        @relation(fields: [artistId], references: [id])
+  teamId      String?       // null = free agent listing
+  team        Team?         @relation(fields: [teamId], references: [id])
+  askingPrice BigInt
+  status      ListingStatus @default(OPEN)
+  expiresAt   DateTime
+  soldAt      DateTime?
+  bids        MarketBid[]
+  createdAt   DateTime      @default(now())
+
+  @@index([status, expiresAt])
+  @@index([artistId])
+}
+
+model MarketBid {
+  id          String        @id @default(cuid())
+  listingId   String
+  listing     MarketListing @relation(fields: [listingId], references: [id])
+  bidderId    String        // teamId
+  amount      BigInt
+  createdAt   DateTime      @default(now())
+
+  @@index([listingId, amount])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRADE OFFERS (team-to-team)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TradeStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+model TradeOffer {
+  id             String      @id @default(cuid())
+  fromTeamId     String
+  fromTeam       Team        @relation("OfferFrom", fields: [fromTeamId], references: [id])
+  toTeamId       String
+  toTeam         Team        @relation("OfferTo", fields: [toTeamId], references: [id])
+  fromUserId     String
+  fromUser       User        @relation("SentOffers", fields: [fromUserId], references: [id])
+  toUserId       String
+  toUser         User        @relation("ReceivedOffers", fields: [toUserId], references: [id])
+  offeredArtists String[]    // artistIds being offered
+  wantedArtists  String[]    // artistIds being requested
+  cashIncluded   BigInt      @default(0)
+  status         TradeStatus @default(PENDING)
+  message        String?
+  expiresAt      DateTime
+  createdAt      DateTime    @default(now())
+  resolvedAt     DateTime?
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEALS (label simulation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum DealType {
+  EXCLUSIVE
+  DEVELOPMENT
+  THREE_SIXTY
+  FEATURE
+  RADIO_PROMO
+  LOAN
+}
+
+enum DealStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+model ArtistDeal {
+  id              String     @id @default(cuid())
+  artistId        String
+  artist          Artist     @relation(fields: [artistId], references: [id])
+  teamId          String
+  dealType        DealType
+  status          DealStatus @default(ACTIVE)
+  cost            BigInt
+  weeklyCost      BigInt     @default(0)
+  durationWeeks   Int
+  weeksPassed     Int        @default(0)
+  pointMultiplier Float      @default(1.0)
+  bonusPoints     Int        @default(0)
+  startedAt       DateTime   @default(now())
+  expiresAt       DateTime
+
+  @@index([teamId, status])
+}
