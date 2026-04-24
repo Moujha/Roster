@@ -47,5 +47,6 @@ __pycache__/
 *.pyc
 *.pyo
 pipeline/.env
+!pipeline/.env.example
 pipeline/venv/
 pipeline/.venv/
