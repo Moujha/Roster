@@ -1,8 +1,11 @@
 """
-Spotify anonymous token manager.
-No developer account needed — uses the web player's public token endpoint.
+Spotify token manager — uses the web player's internal token endpoint.
+
+Requires SP_DC env var: a session cookie from a logged-in Spotify browser session.
+How to get it: open.spotify.com → DevTools → Application → Cookies → sp_dc
 """
 import asyncio
+import os
 import time
 import aiohttp
 
@@ -40,8 +43,12 @@ _TOKEN_HEADERS = {
 
 
 async def _fetch_token(session: aiohttp.ClientSession) -> str:
+    sp_dc = os.environ.get("SP_DC", "")
+    if not sp_dc:
+        raise RuntimeError("SP_DC env var is required. See scraper/app.py for instructions.")
     params = {"reason": "transpost", "productType": "web_player"}
-    async with session.get(TOKEN_URL, params=params, headers=_TOKEN_HEADERS) as resp:
+    cookies = {"sp_dc": sp_dc}
+    async with session.get(TOKEN_URL, params=params, headers=_TOKEN_HEADERS, cookies=cookies) as resp:
         resp.raise_for_status()
         data = await resp.json()
         return data["accessToken"]
