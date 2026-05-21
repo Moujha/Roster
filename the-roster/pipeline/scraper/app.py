@@ -1,32 +1,38 @@
 """
-Spotify token manager — uses the web player's internal token endpoint.
+Spotify token manager — manages both the access token and client token.
 
-Two modes:
-  1. SPOTIFY_ACCESS_TOKEN env var — use a manually extracted token (dev/testing).
+Access token (Bearer):
+  1. SPOTIFY_ACCESS_TOKEN env var — manually extracted token for dev/testing.
      Get it: open.spotify.com → DevTools Console →
        fetch('/get_access_token?reason=transpost&productType=web_player')
          .then(r=>r.json()).then(d=>console.log(d.accessToken))
      Valid ~1 hour.
-
-  2. SP_DC env var — automated daily pipeline. Extracts the token from the
-     Spotify homepage HTML (not the WAF-blocked API endpoint).
+  2. SP_DC env var — automated. Extracts token from Spotify homepage HTML.
      Get sp_dc: open.spotify.com → DevTools → Application → Cookies → sp_dc
+
+Client token (required by Spotify's partner API alongside the Bearer token):
+  Fetched automatically from clienttoken.spotify.com using the web player
+  client ID (a public constant embedded in Spotify's web player JS).
 """
 import asyncio
 import os
 import re
 import time
+import uuid
 import aiohttp
 from curl_cffi.requests import AsyncSession as CurlSession
 
-REFRESH_INTERVAL = 1800  # 30 min; token is valid ~1 hour
+REFRESH_INTERVAL = 1800  # 30 min; access token valid ~1 hour
 
-# Update from open.spotify.com page source (search "spotify-app-version") if getting 400s
-SPOTIFY_APP_VERSION = "1.2.38.17.g766c306b"
+SPOTIFY_APP_VERSION  = "1.2.38.17.g766c306b"
+_WEB_PLAYER_CLIENT_ID = "d8a5ed958d274c2e8ee717e6a4b0971d"
+_CLIENT_TOKEN_URL    = "https://clienttoken.spotify.com/v1/clienttoken"
+
+# ── Access token ──────────────────────────────────────────────────────────────
 
 _access_token: str = ""
 _token_expiry: float = 0.0
-_lock: asyncio.Lock = None  # initialised lazily (event loop must exist)
+_lock: asyncio.Lock = None
 
 
 def _get_lock() -> asyncio.Lock:
@@ -49,18 +55,11 @@ _BROWSER_HEADERS = {
 
 
 async def _fetch_token_from_env() -> str:
-    """Return the manually set SPOTIFY_ACCESS_TOKEN if present."""
     token = os.environ.get("SPOTIFY_ACCESS_TOKEN", "").strip()
     return token or ""
 
 
 async def _fetch_token_from_homepage(sp_dc: str) -> str:
-    """
-    Extract access token from Spotify homepage HTML.
-    The page embeds {"accessToken":"BQD..."} in a script tag when loaded
-    with a valid sp_dc cookie. Uses curl_cffi Chrome impersonation to pass
-    Fastly bot checks on the HTML endpoint (different WAF rules than the API).
-    """
     async with CurlSession(impersonate="chrome124") as curl:
         resp = await curl.get(
             "https://open.spotify.com/",
@@ -76,16 +75,12 @@ async def _fetch_token_from_homepage(sp_dc: str) -> str:
 
 
 async def _fetch_token(_session: aiohttp.ClientSession) -> str:
-    # Mode 1: manually extracted token
     token = await _fetch_token_from_env()
     if token:
         return token
-
-    # Mode 2: automated extraction via homepage HTML
     sp_dc = os.environ.get("SP_DC", "").strip()
     if sp_dc:
         return await _fetch_token_from_homepage(sp_dc)
-
     raise RuntimeError(
         "No Spotify credentials found. Set either:\n"
         "  SPOTIFY_ACCESS_TOKEN — token from browser DevTools Console\n"
@@ -103,7 +98,6 @@ async def get_token(session: aiohttp.ClientSession) -> str:
 
 
 async def force_refresh(session: aiohttp.ClientSession) -> None:
-    """Force an immediate token refresh (called on 401 responses)."""
     global _access_token, _token_expiry
     async with _get_lock():
         _access_token = await _fetch_token(session)
@@ -111,14 +105,72 @@ async def force_refresh(session: aiohttp.ClientSession) -> None:
 
 
 async def refresh_token_loop(session: aiohttp.ClientSession) -> None:
-    """Background task: proactively refresh the token every REFRESH_INTERVAL seconds."""
     while True:
         await asyncio.sleep(REFRESH_INTERVAL)
         await force_refresh(session)
 
 
-def build_headers(token: str) -> dict:
-    return {
+# ── Client token ──────────────────────────────────────────────────────────────
+
+_client_token: str = ""
+_client_token_expiry: float = 0.0
+_ct_lock: asyncio.Lock = None
+
+
+def _get_ct_lock() -> asyncio.Lock:
+    global _ct_lock
+    if _ct_lock is None:
+        _ct_lock = asyncio.Lock()
+    return _ct_lock
+
+
+async def _fetch_client_token(session: aiohttp.ClientSession) -> str:
+    """
+    Fetches a client token from clienttoken.spotify.com.
+    Uses the public Spotify web player client ID.
+    """
+    payload = {
+        "client_data": {
+            "client_version": SPOTIFY_APP_VERSION,
+            "client_id": _WEB_PLAYER_CLIENT_ID,
+            "js_sdk_data": {
+                "device_brand": "Apple",
+                "device_model": "unknown",
+                "os": "macos",
+                "os_version": "unknown",
+                "device_id": str(uuid.uuid4()),
+                "device_type": "computer",
+            },
+        }
+    }
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "user-agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+    }
+    async with session.post(_CLIENT_TOKEN_URL, json=payload, headers=headers) as resp:
+        resp.raise_for_status()
+        data = await resp.json()
+        return data["granted_token"]["token"]
+
+
+async def get_client_token(session: aiohttp.ClientSession) -> str:
+    global _client_token, _client_token_expiry
+    async with _get_ct_lock():
+        if time.time() >= _client_token_expiry:
+            _client_token = await _fetch_client_token(session)
+            _client_token_expiry = time.time() + REFRESH_INTERVAL
+    return _client_token
+
+
+# ── Headers ───────────────────────────────────────────────────────────────────
+
+def build_headers(token: str, client_token: str = "") -> dict:
+    headers = {
         "accept": "application/json",
         "app-platform": "WebPlayer",
         "content-type": "application/json",
@@ -132,3 +184,6 @@ def build_headers(token: str) -> dict:
         ),
         "authorization": f"Bearer {token}",
     }
+    if client_token:
+        headers["client-token"] = client_token
+    return headers

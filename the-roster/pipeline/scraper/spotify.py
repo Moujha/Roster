@@ -8,7 +8,7 @@ from typing import Optional
 
 import aiohttp
 
-from .app import get_token, force_refresh, build_headers
+from .app import get_token, get_client_token, force_refresh, build_headers
 from .queries import (
     GRAPHQL_URL,
     QUERY_ARTIST_OVERVIEW, EXT_ARTIST_OVERVIEW,
@@ -39,6 +39,7 @@ async def _gql(
     """
     for attempt in range(MAX_RETRIES + 1):
         token = await get_token(session)
+        client_token = await get_client_token(session)
         params = {
             "operationName": operation,
             "variables": json.dumps(variables),
@@ -49,7 +50,7 @@ async def _gql(
             await asyncio.sleep(REQUEST_DELAY)
             async with session.get(
                 GRAPHQL_URL,
-                headers=build_headers(token),
+                headers=build_headers(token, client_token),
                 params=params,
             ) as resp:
                 if resp.status == 401:
@@ -60,6 +61,7 @@ async def _gql(
                 data = await resp.json()
                 if "errors" in data:
                     log.warning(f"  [{operation}] GraphQL errors: {data['errors']}")
+                log.debug(f"  [{operation}] response keys: {list((data.get('data') or {}).keys())}")
                 return data
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if attempt == MAX_RETRIES:
