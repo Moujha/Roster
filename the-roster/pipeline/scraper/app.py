@@ -74,10 +74,11 @@ async def _fetch_token_from_homepage(sp_dc: str) -> str:
         return match.group(1)
 
 
-async def _fetch_token(_session: aiohttp.ClientSession) -> str:
-    token = await _fetch_token_from_env()
-    if token:
-        return token
+async def _fetch_token(_session: aiohttp.ClientSession, skip_env: bool = False) -> str:
+    if not skip_env:
+        token = await _fetch_token_from_env()
+        if token:
+            return token
     sp_dc = os.environ.get("SP_DC", "").strip()
     if sp_dc:
         return await _fetch_token_from_homepage(sp_dc)
@@ -98,9 +99,12 @@ async def get_token(session: aiohttp.ClientSession) -> str:
 
 
 async def force_refresh(session: aiohttp.ClientSession) -> None:
+    """Force token refresh. If SPOTIFY_ACCESS_TOKEN is set, skip it on refresh
+    (it can't change at runtime) and go straight to SP_DC homepage extraction."""
     global _access_token, _token_expiry
+    sp_dc = os.environ.get("SP_DC", "").strip()
     async with _get_lock():
-        _access_token = await _fetch_token(session)
+        _access_token = await _fetch_token(session, skip_env=bool(sp_dc))
         _token_expiry = time.time() + REFRESH_INTERVAL
 
 

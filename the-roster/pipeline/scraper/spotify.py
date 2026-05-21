@@ -54,7 +54,7 @@ async def _gql(
                 params=params,
             ) as resp:
                 if resp.status == 401:
-                    log.debug("401 — forcing token refresh")
+                    log.warning(f"  [{operation}] 401 — token expired, forcing refresh (attempt {attempt + 1})")
                     await force_refresh(session)
                     continue
                 resp.raise_for_status()
