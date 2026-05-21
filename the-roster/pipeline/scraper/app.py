@@ -3,11 +3,15 @@ Spotify token manager — uses the web player's internal token endpoint.
 
 Requires SP_DC env var: a session cookie from a logged-in Spotify browser session.
 How to get it: open.spotify.com → DevTools → Application → Cookies → sp_dc
+
+curl_cffi is used for the token request because Cloudflare bot detection blocks
+Python's default TLS fingerprint. curl_cffi impersonates Chrome's TLS ClientHello.
 """
 import asyncio
 import os
 import time
 import aiohttp
+from curl_cffi.requests import AsyncSession as CurlSession
 
 TOKEN_URL = "https://open.spotify.com/get_access_token"
 REFRESH_INTERVAL = 500  # seconds; token is valid ~3600s
@@ -42,18 +46,15 @@ _TOKEN_HEADERS = {
 }
 
 
-async def _fetch_token(session: aiohttp.ClientSession) -> str:
+async def _fetch_token(_session: aiohttp.ClientSession) -> str:
     sp_dc = os.environ.get("SP_DC", "")
     if not sp_dc:
         raise RuntimeError("SP_DC env var is required. See scraper/app.py for instructions.")
     params = {"reason": "transpost", "productType": "web_player"}
-    # Pass sp_dc as a raw Cookie header — aiohttp's safe CookieJar drops cookies
-    # for cross-origin domains, so the cookies= kwarg would be silently ignored.
-    headers = {**_TOKEN_HEADERS, "Cookie": f"sp_dc={sp_dc}"}
-    async with session.get(TOKEN_URL, params=params, headers=headers) as resp:
+    async with CurlSession(impersonate="chrome124") as curl:
+        resp = await curl.get(TOKEN_URL, params=params, headers=_TOKEN_HEADERS, cookies={"sp_dc": sp_dc})
         resp.raise_for_status()
-        data = await resp.json()
-        return data["accessToken"]
+        return resp.json()["accessToken"]
 
 
 async def get_token(session: aiohttp.ClientSession) -> str:
