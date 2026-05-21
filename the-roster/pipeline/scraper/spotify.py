@@ -61,7 +61,7 @@ async def _gql(
                 data = await resp.json()
                 if "errors" in data:
                     log.warning(f"  [{operation}] GraphQL errors: {data['errors']}")
-                log.debug(f"  [{operation}] response keys: {list((data.get('data') or {}).keys())}")
+                log.warning(f"  [{operation}] raw response: {str(data)[:300]}")
                 return data
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if attempt == MAX_RETRIES:
