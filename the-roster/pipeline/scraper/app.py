@@ -1,20 +1,25 @@
 """
 Spotify token manager — uses the web player's internal token endpoint.
 
-Requires SP_DC env var: a session cookie from a logged-in Spotify browser session.
-How to get it: open.spotify.com → DevTools → Application → Cookies → sp_dc
+Two modes:
+  1. SPOTIFY_ACCESS_TOKEN env var — use a manually extracted token (dev/testing).
+     Get it: open.spotify.com → DevTools Console →
+       fetch('/get_access_token?reason=transpost&productType=web_player')
+         .then(r=>r.json()).then(d=>console.log(d.accessToken))
+     Valid ~1 hour.
 
-curl_cffi is used for the token request because Cloudflare bot detection blocks
-Python's default TLS fingerprint. curl_cffi impersonates Chrome's TLS ClientHello.
+  2. SP_DC env var — automated daily pipeline. Extracts the token from the
+     Spotify homepage HTML (not the WAF-blocked API endpoint).
+     Get sp_dc: open.spotify.com → DevTools → Application → Cookies → sp_dc
 """
 import asyncio
 import os
+import re
 import time
 import aiohttp
 from curl_cffi.requests import AsyncSession as CurlSession
 
-TOKEN_URL = "https://open.spotify.com/get_access_token"
-REFRESH_INTERVAL = 500  # seconds; token is valid ~3600s
+REFRESH_INTERVAL = 1800  # 30 min; token is valid ~1 hour
 
 # Update from open.spotify.com page source (search "spotify-app-version") if getting 400s
 SPOTIFY_APP_VERSION = "1.2.38.17.g766c306b"
@@ -31,31 +36,61 @@ def _get_lock() -> asyncio.Lock:
     return _lock
 
 
-_TOKEN_HEADERS = {
+_BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0.0.0 Safari/537.36"
     ),
-    "Accept": "application/json",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://open.spotify.com/",
-    "Origin": "https://open.spotify.com",
-    "app-platform": "WebPlayer",
-    "spotify-app-version": SPOTIFY_APP_VERSION,
+    "Accept-Encoding": "gzip, deflate, br",
 }
 
 
-async def _fetch_token(_session: aiohttp.ClientSession) -> str:
-    sp_dc = os.environ.get("SP_DC", "")
-    if not sp_dc:
-        raise RuntimeError("SP_DC env var is required. See scraper/app.py for instructions.")
-    params = {"reason": "transpost", "productType": "web_player"}
+async def _fetch_token_from_env() -> str:
+    """Return the manually set SPOTIFY_ACCESS_TOKEN if present."""
+    token = os.environ.get("SPOTIFY_ACCESS_TOKEN", "").strip()
+    return token or ""
+
+
+async def _fetch_token_from_homepage(sp_dc: str) -> str:
+    """
+    Extract access token from Spotify homepage HTML.
+    The page embeds {"accessToken":"BQD..."} in a script tag when loaded
+    with a valid sp_dc cookie. Uses curl_cffi Chrome impersonation to pass
+    Fastly bot checks on the HTML endpoint (different WAF rules than the API).
+    """
     async with CurlSession(impersonate="chrome124") as curl:
-        resp = await curl.get(TOKEN_URL, params=params, headers=_TOKEN_HEADERS, cookies={"sp_dc": sp_dc})
+        resp = await curl.get(
+            "https://open.spotify.com/",
+            cookies={"sp_dc": sp_dc},
+            headers=_BROWSER_HEADERS,
+        )
         if resp.status_code != 200:
-            raise RuntimeError(f"Token fetch failed {resp.status_code}: {resp.text[:400]}")
-        return resp.json()["accessToken"]
+            raise RuntimeError(f"Spotify homepage returned {resp.status_code}: {resp.text[:200]}")
+        match = re.search(r'"accessToken"\s*:\s*"([^"]+)"', resp.text)
+        if not match:
+            raise RuntimeError("accessToken not found in Spotify homepage — sp_dc may be expired")
+        return match.group(1)
+
+
+async def _fetch_token(_session: aiohttp.ClientSession) -> str:
+    # Mode 1: manually extracted token
+    token = await _fetch_token_from_env()
+    if token:
+        return token
+
+    # Mode 2: automated extraction via homepage HTML
+    sp_dc = os.environ.get("SP_DC", "").strip()
+    if sp_dc:
+        return await _fetch_token_from_homepage(sp_dc)
+
+    raise RuntimeError(
+        "No Spotify credentials found. Set either:\n"
+        "  SPOTIFY_ACCESS_TOKEN — token from browser DevTools Console\n"
+        "  SP_DC               — sp_dc cookie from browser Application tab"
+    )
 
 
 async def get_token(session: aiohttp.ClientSession) -> str:
