@@ -14,6 +14,7 @@ from .queries import (
     QUERY_ARTIST_OVERVIEW, EXT_ARTIST_OVERVIEW,
     QUERY_ARTIST_DISCOGRAPHY_ALL, EXT_DISCOGRAPHY_ALL,
     QUERY_GET_ALBUM, EXT_GET_ALBUM,
+    build_extensions,
 )
 
 log = logging.getLogger(__name__)
@@ -28,9 +29,11 @@ async def _gql(
     operation: str,
     variables: dict,
     extensions: str,
+    query: str,
 ) -> dict:
     """
-    Execute one GraphQL GET request.
+    Execute one GraphQL GET request using Apollo APQ protocol.
+    Sends hash + full query body so Spotify can register the query if needed.
     Retries up to MAX_RETRIES times with exponential backoff.
     Refreshes the auth token immediately on 401.
     """
@@ -40,6 +43,7 @@ async def _gql(
             "operationName": operation,
             "variables": json.dumps(variables),
             "extensions": extensions,
+            "query": query,
         }
         try:
             await asyncio.sleep(REQUEST_DELAY)
@@ -53,7 +57,10 @@ async def _gql(
                     await force_refresh(session)
                     continue
                 resp.raise_for_status()
-                return await resp.json()
+                data = await resp.json()
+                if "errors" in data:
+                    log.warning(f"  [{operation}] GraphQL errors: {data['errors']}")
+                return data
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if attempt == MAX_RETRIES:
                 raise
@@ -81,7 +88,7 @@ async def fetch_artist_overview(
         "locale": "",
         "includePrerelease": True,
     }
-    data = await _gql(session, "queryArtistOverview", variables, EXT_ARTIST_OVERVIEW)
+    data = await _gql(session, "queryArtistOverview", variables, EXT_ARTIST_OVERVIEW, QUERY_ARTIST_OVERVIEW)
 
     artist = ((data.get("data") or {}).get("artistUnion")) or {}
     stats  = artist.get("stats") or {}
@@ -122,7 +129,7 @@ async def fetch_all_album_ids(
             "offset": offset,
             "limit":  limit,
         }
-        data = await _gql(session, "queryArtistDiscographyAll", variables, EXT_DISCOGRAPHY_ALL)
+        data = await _gql(session, "queryArtistDiscographyAll", variables, EXT_DISCOGRAPHY_ALL, QUERY_ARTIST_DISCOGRAPHY_ALL)
 
         discog = (
             (data.get("data") or {})
@@ -164,7 +171,7 @@ async def fetch_album_tracks(
             "offset": offset,
             "limit":  limit,
         }
-        data = await _gql(session, "getAlbum", variables, EXT_GET_ALBUM)
+        data = await _gql(session, "getAlbum", variables, EXT_GET_ALBUM, QUERY_GET_ALBUM)
 
         album_union = (data.get("data") or {}).get("albumUnion") or {}
         tracks_data = album_union.get("tracks") or {}
