@@ -68,9 +68,18 @@ async def _fetch_token_from_homepage(sp_dc: str) -> str:
         )
         if resp.status_code != 200:
             raise RuntimeError(f"Spotify homepage returned {resp.status_code}: {resp.text[:200]}")
-        match = re.search(r'"accessToken"\s*:\s*"([^"]+)"', resp.text)
+        # Spotify embeds the token variously as:
+        # {"accessToken":"BQD..."} or accessToken":"BQD..." or accessToken\\":\\"BQD...
+        match = (
+            re.search(r'"accessToken"\s*:\s*"([A-Za-z0-9_\-]+)"', resp.text)
+            or re.search(r'accessToken["\s]*:\s*["\']([A-Za-z0-9_\-]+)["\']', resp.text)
+        )
         if not match:
-            raise RuntimeError("accessToken not found in Spotify homepage — sp_dc may be expired")
+            raise RuntimeError(
+                "accessToken not found in Spotify homepage — "
+                "sp_dc may be expired or Spotify changed the page format. "
+                f"Page starts with: {resp.text[:200]}"
+            )
         return match.group(1)
 
 
