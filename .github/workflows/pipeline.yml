@@ -32,7 +32,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run pipeline
+      - name: Scrape raw Spotify data (playcounts + monthly listeners)
+        run: python -m scraper.main
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Score + price artists
         run: python run.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
