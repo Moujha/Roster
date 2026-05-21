@@ -24,9 +24,24 @@ def _get_lock() -> asyncio.Lock:
     return _lock
 
 
+_TOKEN_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://open.spotify.com/",
+    "Origin": "https://open.spotify.com",
+    "app-platform": "WebPlayer",
+    "spotify-app-version": SPOTIFY_APP_VERSION,
+}
+
+
 async def _fetch_token(session: aiohttp.ClientSession) -> str:
     params = {"reason": "transpost", "productType": "web_player"}
-    async with session.get(TOKEN_URL, params=params) as resp:
+    async with session.get(TOKEN_URL, params=params, headers=_TOKEN_HEADERS) as resp:
         resp.raise_for_status()
         data = await resp.json()
         return data["accessToken"]
