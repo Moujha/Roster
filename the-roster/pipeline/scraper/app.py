@@ -53,7 +53,8 @@ async def _fetch_token(_session: aiohttp.ClientSession) -> str:
     params = {"reason": "transpost", "productType": "web_player"}
     async with CurlSession(impersonate="chrome124") as curl:
         resp = await curl.get(TOKEN_URL, params=params, headers=_TOKEN_HEADERS, cookies={"sp_dc": sp_dc})
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise RuntimeError(f"Token fetch failed {resp.status_code}: {resp.text[:400]}")
         return resp.json()["accessToken"]
 
 
