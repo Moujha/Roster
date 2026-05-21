@@ -47,8 +47,10 @@ async def _fetch_token(session: aiohttp.ClientSession) -> str:
     if not sp_dc:
         raise RuntimeError("SP_DC env var is required. See scraper/app.py for instructions.")
     params = {"reason": "transpost", "productType": "web_player"}
-    cookies = {"sp_dc": sp_dc}
-    async with session.get(TOKEN_URL, params=params, headers=_TOKEN_HEADERS, cookies=cookies) as resp:
+    # Pass sp_dc as a raw Cookie header — aiohttp's safe CookieJar drops cookies
+    # for cross-origin domains, so the cookies= kwarg would be silently ignored.
+    headers = {**_TOKEN_HEADERS, "Cookie": f"sp_dc={sp_dc}"}
+    async with session.get(TOKEN_URL, params=params, headers=headers) as resp:
         resp.raise_for_status()
         data = await resp.json()
         return data["accessToken"]
