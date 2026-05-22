@@ -59,37 +59,55 @@ async def _fetch_token_from_env() -> str:
 
 
 async def _fetch_token_from_sp_dc(sp_dc: str) -> str:
+    # Try simple aiohttp first (no TLS fingerprinting needed for this endpoint)
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(
+                "https://open.spotify.com/api/token",
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "application/json",
+                    "Referer": "https://open.spotify.com/",
+                },
+                cookies={"sp_dc": sp_dc},
+            ) as resp:
+                body = await resp.text()
+                if resp.status == 200:
+                    import json as _json
+                    data = _json.loads(body)
+                    token = data.get("accessToken", "")
+                    if token:
+                        return token
+                log.warning(f"  [/api/token aiohttp] {resp.status}: {body[:300]}")
+    except Exception as exc:
+        log.warning(f"  [/api/token aiohttp] failed: {exc}")
+
+    # Fallback: curl_cffi with Chrome fingerprint
     async with CurlSession(impersonate="chrome124") as curl:
         resp = await curl.get(
             "https://open.spotify.com/api/token",
             cookies={"sp_dc": sp_dc},
             headers={
-                **_BROWSER_HEADERS,
                 "Accept": "application/json",
-                "Origin": "https://open.spotify.com",
                 "Referer": "https://open.spotify.com/",
             },
         )
-        if resp.status_code == 400:
-            raise RuntimeError(
-                "Spotify /api/token returned 400 — your SP_DC cookie is expired.\n"
-                "Refresh it:\n"
-                "  1. Open open.spotify.com in Chrome (while logged in)\n"
-                "  2. DevTools (Cmd+Option+I) → Application → Cookies → open.spotify.com\n"
-                "  3. Copy the sp_dc value\n"
-                "  4. Update SP_DC in .env AND in the GitHub Actions secret"
-            )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Spotify /api/token returned {resp.status_code}: {resp.text[:300]}"
-            )
-        data = resp.json()
-        token = data.get("accessToken", "")
-        if not token:
-            raise RuntimeError(
-                f"accessToken missing from /api/token response: {data}"
-            )
-        return token
+        body = resp.text
+        if resp.status_code == 200:
+            import json as _json
+            data = _json.loads(body)
+            token = data.get("accessToken", "")
+            if token:
+                return token
+        raise RuntimeError(
+            f"Spotify /api/token returned {resp.status_code}: {body[:400]}\n\n"
+            "If the error is 'invalid_client' or 'Bad Request', your sp_dc may be\n"
+            "expired. Refresh it from Chrome DevTools → Application → Cookies → sp_dc."
+        )
 
 
 async def _fetch_token(_session: aiohttp.ClientSession, skip_env: bool = False) -> str:
