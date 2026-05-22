@@ -40,18 +40,18 @@ async def _gql(
     for attempt in range(MAX_RETRIES + 1):
         token = await get_token(session)
         client_token = await get_client_token(session)
-        params = {
+        body = {
             "operationName": operation,
-            "variables": json.dumps(variables),
-            "extensions": extensions,
+            "variables": variables,
+            "extensions": json.loads(extensions),
             "query": query,
         }
         try:
             await asyncio.sleep(REQUEST_DELAY)
-            async with session.get(
+            async with session.post(
                 GRAPHQL_URL,
                 headers=build_headers(token, client_token),
-                params=params,
+                json=body,
             ) as resp:
                 if resp.status == 401:
                     log.warning(f"  [{operation}] 401 — token expired, forcing refresh (attempt {attempt + 1})")
