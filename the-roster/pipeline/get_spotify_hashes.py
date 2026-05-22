@@ -53,6 +53,8 @@ async def capture():
 
         page = await context.new_page()
 
+        current_page = ["artist"]
+
         def on_request(request):
             if "pathfinder/v2/query" not in request.url:
                 return
@@ -63,9 +65,11 @@ async def capture():
             op   = body.get("operationName", "")
             ext  = body.get("extensions", {})
             h    = (ext.get("persistedQuery") or {}).get("sha256Hash", "")
-            if op and h and op not in queries:
+            if op and h:
+                is_new = op not in queries
                 queries[op] = h
-                print(f"  ✓ {op}: {h}")
+                marker = " [NEW]" if is_new else ""
+                print(f"  [{current_page[0]}]{marker} {op}: {h}")
 
         page.on("request", on_request)
 
@@ -78,15 +82,18 @@ async def capture():
             await asyncio.sleep(1)
         await asyncio.sleep(2)
 
-        if "queryArtistDiscographyAll" not in queries:
-            print(f"\nLoading discography page: {DISCOGRAPHY_URL}")
-            await page.goto(DISCOGRAPHY_URL, wait_until="networkidle", timeout=30_000)
-            await asyncio.sleep(3)
+        current_page[0] = "discography"
+        print(f"\nLoading discography page: {DISCOGRAPHY_URL}")
+        await page.goto(DISCOGRAPHY_URL, wait_until="networkidle", timeout=30_000)
+        for _ in range(5):
+            await page.evaluate("window.scrollBy(0, 600)")
+            await asyncio.sleep(0.8)
+        await asyncio.sleep(2)
 
-        if "getAlbum" not in queries:
-            print(f"\nLoading album page: {ALBUM_URL}")
-            await page.goto(ALBUM_URL, wait_until="networkidle", timeout=30_000)
-            await asyncio.sleep(3)
+        current_page[0] = "album"
+        print(f"\nLoading album page: {ALBUM_URL}")
+        await page.goto(ALBUM_URL, wait_until="networkidle", timeout=30_000)
+        await asyncio.sleep(3)
 
         await browser.close()
 
