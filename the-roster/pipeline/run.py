@@ -1,46 +1,39 @@
 """
-Daily data pipeline — entry point.
+Daily scoring pipeline — entry point (Step 2 of the daily workflow).
 
-Execution order:
-  1. Load all artists from the DB
-  2. Fetch the Spotify Global Weekly Top 200 chart (one request)
-  3. Fetch Spotify artist metadata in batches of 50
-  4. For each artist: compute score + price, upsert to DB
+Reads scrape data written by `python -m scraper.main` (Step 1),
+computes scores and market prices, and upserts to artist_stats + market_prices.
 
 Run manually:
   cd pipeline && python run.py
 
-Scheduled via .github/workflows/pipeline.yml (daily at 07:00 UTC).
+Scheduled via .github/workflows/pipeline.yml (daily at 07:00 UTC, after scraper).
 """
 import sys
 from datetime import date
 
 from db import (
     get_all_artists,
+    get_latest_scrape,
+    get_prev_scrape,
     get_prev_stats,
     get_prev_price,
     upsert_artist_stats,
     upsert_market_price,
 )
-from fetchers.spotify import fetch_artists_batch
 from fetchers.charts import fetch_global_chart, build_artist_chart_map
 from scorer import compute_score, compute_market_price
 
 
-def _chunks(lst: list, n: int):
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
-
-
 def run(run_date: date = None) -> int:
     """
-    Runs the full pipeline for run_date (defaults to today).
+    Runs the scoring pipeline for run_date (defaults to today).
     Returns the number of errors so CI can fail on non-zero.
     """
     if run_date is None:
         run_date = date.today()
 
-    print(f"=== Pipeline run: {run_date} ===")
+    print(f"=== Scoring pipeline: {run_date} ===")
 
     # 1. Load artists
     artists = get_all_artists()
@@ -55,35 +48,30 @@ def run(run_date: date = None) -> int:
     chart_map = build_artist_chart_map(chart_entries)
     print(f"  {len(chart_entries)} chart entries, {len(chart_map)} unique charting artists")
 
-    # 3. Spotify metadata in batches of 50
-    print("Fetching Spotify artist metadata...")
-    spotify_ids = [a["spotify_id"] for a in artists]
-    spotify_map: dict = {}
-    for batch in _chunks(spotify_ids, 50):
-        for artist_data in fetch_artists_batch(batch):
-            spotify_map[artist_data["id"]] = artist_data
-    print(f"  Fetched {len(spotify_map)} / {len(artists)} artists from Spotify")
-
-    # 4. Score, price, upsert
+    # 3. Score, price, upsert — reads scrape data from artist_stats_daily
     success = 0
     errors = 0
+    skipped = 0
     for artist in artists:
-        name = artist["name"]
+        name        = artist["name"]
+        artist_id   = artist["id"]
+        spotify_id  = artist["spotify_id"]
         try:
-            spotify_data = spotify_map.get(artist["spotify_id"])
-            if not spotify_data:
-                print(f"  SKIP {name} — not found in Spotify API response")
+            scrape_data = get_latest_scrape(artist_id, run_date)
+            if not scrape_data:
+                print(f"  SKIP {name} — no scrape data for {run_date} (run scraper first)")
+                skipped += 1
                 continue
 
-            chart_data  = chart_map.get(artist["spotify_id"])
-            prev_stats  = get_prev_stats(artist["id"], run_date)
-            prev_price  = get_prev_price(artist["id"], run_date)
+            chart_data = chart_map.get(spotify_id)
+            prev_scrape = get_prev_scrape(artist_id, run_date)
+            prev_price  = get_prev_price(artist_id, run_date)
 
-            score = compute_score(spotify_data, chart_data, prev_stats)
-            price = compute_market_price(spotify_data, prev_price)
+            score = compute_score(scrape_data, chart_data, prev_scrape)
+            price = compute_market_price(scrape_data, prev_price)
 
-            upsert_artist_stats(artist["id"], run_date, spotify_data, chart_data, score)
-            upsert_market_price(artist["id"], run_date, price)
+            upsert_artist_stats(artist_id, run_date, scrape_data, chart_data, score)
+            upsert_market_price(artist_id, run_date, price)
 
             chart_info = f" chart=#{chart_data['best_rank']}" if chart_data else ""
             print(
@@ -96,7 +84,7 @@ def run(run_date: date = None) -> int:
             print(f"  ERR {name}: {exc}")
             errors += 1
 
-    print(f"\nDone: {success} succeeded, {errors} failed")
+    print(f"\nDone: {success} succeeded, {skipped} skipped, {errors} failed")
     return errors
 
 

@@ -22,6 +22,35 @@ def get_client() -> Client:
 
 # ─── Reads ────────────────────────────────────────────────────────────────────
 
+def get_latest_scrape(artist_id: str, on_date: date) -> Optional[dict]:
+    """Returns the artist_stats_daily row for on_date, or None if not scraped yet."""
+    result = (
+        get_client()
+        .table("artist_stats_daily")
+        .select("monthly_listeners,followers,scraped_at")
+        .eq("artist_id", artist_id)
+        .eq("scraped_at", on_date.isoformat())
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def get_prev_scrape(artist_id: str, before_date: date) -> Optional[dict]:
+    """Returns the most recent artist_stats_daily row strictly before before_date."""
+    result = (
+        get_client()
+        .table("artist_stats_daily")
+        .select("monthly_listeners,followers,scraped_at")
+        .eq("artist_id", artist_id)
+        .lt("scraped_at", before_date.isoformat())
+        .order("scraped_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
 def get_all_artists() -> list:
     """Returns all rows from the artists table: id, spotify_id, name."""
     result = get_client().table("artists").select("id,spotify_id,name").execute()
@@ -86,19 +115,15 @@ def upsert_artist(spotify_data: dict) -> str:
 def upsert_artist_stats(
     artist_id: str,
     run_date: date,
-    spotify_data: dict,
+    scrape_data: dict,
     chart_data: Optional[dict],
     score: dict,
 ) -> None:
     """Insert or update the daily stats snapshot for one artist."""
-    followers = (spotify_data.get("followers") or {}).get("total")
-
     row = {
         "artist_id": artist_id,
         "date": run_date.isoformat(),
-        # followers.total is the best available proxy for monthly listeners
-        "spotify_monthly_listeners": followers,
-        # weekly streams from chart data (null if artist not on chart)
+        "spotify_monthly_listeners": scrape_data.get("monthly_listeners"),
         "spotify_streams_7d": chart_data.get("total_streams") if chart_data else None,
         "ig_followers": None,
         "tiktok_followers": None,
