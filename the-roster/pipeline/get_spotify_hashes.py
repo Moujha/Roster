@@ -82,13 +82,23 @@ async def capture():
             await asyncio.sleep(1)
         await asyncio.sleep(2)
 
+        # Use a fresh context for discography to force cold API calls
         current_page[0] = "discography"
-        print(f"\nLoading discography page: {DISCOGRAPHY_URL}")
-        await page.goto(DISCOGRAPHY_URL, wait_until="networkidle", timeout=30_000)
+        print(f"\nLoading discography page (fresh context): {DISCOGRAPHY_URL}")
+        context2 = await browser.new_context()
+        if sp_dc:
+            await context2.add_cookies([{
+                "name": "sp_dc", "value": sp_dc,
+                "domain": ".spotify.com", "path": "/", "secure": True,
+            }])
+        page2 = await context2.new_page()
+        page2.on("request", on_request)
+        await page2.goto(DISCOGRAPHY_URL, wait_until="networkidle", timeout=30_000)
         for _ in range(5):
-            await page.evaluate("window.scrollBy(0, 600)")
+            await page2.evaluate("window.scrollBy(0, 600)")
             await asyncio.sleep(0.8)
         await asyncio.sleep(2)
+        await context2.close()
 
         current_page[0] = "album"
         print(f"\nLoading album page: {ALBUM_URL}")

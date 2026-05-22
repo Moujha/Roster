@@ -1,16 +1,36 @@
 """
-Spotify internal GraphQL query strings and persisted-query hash helpers.
+Spotify internal GraphQL query strings and persisted-query extensions.
 
-DO NOT modify the query strings — the SHA-256 hash must match exactly what
-Spotify expects for its persisted query protocol. Any whitespace/field change
-will produce a different hash and Spotify will reject the request.
+Hashes are pre-registered server-side by Spotify — they must match exactly.
+Run pipeline/get_spotify_hashes.py to refresh them when Spotify deploys updates.
 """
-import hashlib
 import json
 
 GRAPHQL_URL = "https://api-partner.spotify.com/pathfinder/v2/query"
 
-# ── Query strings (verbatim) ──────────────────────────────────────────────────
+# ── Confirmed hashes (captured 2026-05-22 via get_spotify_hashes.py) ─────────
+
+_HASHES = {
+    "queryArtistOverview":       "7f86ff63e38c24973a2842b672abe44c910c1973978dc8a4a0cb648edef34527",
+    "queryArtistDiscographyAll": None,  # not yet captured — see get_spotify_hashes.py
+    "getAlbum":                  "b9bfabef66ed756e5e13f68a942deb60bd4125ec1f1be8cc42769dc0259b4b10",
+}
+
+
+def _ext(op: str) -> str:
+    h = _HASHES[op]
+    if not h:
+        raise RuntimeError(
+            f"Hash for '{op}' not yet captured. Run: python get_spotify_hashes.py"
+        )
+    return json.dumps({"persistedQuery": {"version": 1, "sha256Hash": h}})
+
+
+EXT_ARTIST_OVERVIEW = _ext("queryArtistOverview")
+EXT_GET_ALBUM       = _ext("getAlbum")
+
+# ── Query strings ─────────────────────────────────────────────────────────────
+# Kept for reference and for potential APQ fallback. Not used in the hash.
 
 QUERY_ARTIST_OVERVIEW = """query queryArtistOverview($uri: ID!, $locale: String, $includePrerelease: Boolean!) {
   artistUnion(uri: $uri) {
@@ -129,21 +149,3 @@ QUERY_GET_ALBUM = """query getAlbum($uri: ID!, $locale: String, $offset: Int, $l
     }
   }
 }"""
-
-
-# ── Hash helpers ──────────────────────────────────────────────────────────────
-
-def _sha256(query: str) -> str:
-    return hashlib.sha256(query.encode()).hexdigest()
-
-
-def build_extensions(query: str) -> str:
-    return json.dumps({
-        "persistedQuery": {"version": 1, "sha256Hash": _sha256(query)}
-    })
-
-
-# Pre-computed extensions strings (one per query)
-EXT_ARTIST_OVERVIEW    = build_extensions(QUERY_ARTIST_OVERVIEW)
-EXT_DISCOGRAPHY_ALL    = build_extensions(QUERY_ARTIST_DISCOGRAPHY_ALL)
-EXT_GET_ALBUM          = build_extensions(QUERY_GET_ALBUM)
