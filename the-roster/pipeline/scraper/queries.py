@@ -8,7 +8,7 @@ will produce a different hash and Spotify will reject the request.
 import hashlib
 import json
 
-GRAPHQL_URL = "https://api-partner.spotify.com/pathfinder/v1/query"
+GRAPHQL_URL = "https://api-partner.spotify.com/pathfinder/v2/query"
 
 # ── Query strings (verbatim) ──────────────────────────────────────────────────
 
