@@ -186,7 +186,7 @@ def build_headers(token: str, client_token: str = "") -> dict:
     headers = {
         "accept": "application/json",
         "app-platform": "WebPlayer",
-        "content-type": "application/json",
+        "content-type": "application/json;charset=UTF-8",
         "origin": "https://open.spotify.com",
         "referer": "https://open.spotify.com/",
         "spotify-app-version": SPOTIFY_APP_VERSION,
