@@ -16,11 +16,14 @@ Client token (required by Spotify's partner API alongside the Bearer token):
   client ID (a public constant embedded in Spotify's web player JS).
 """
 import asyncio
+import logging
 import os
 import time
 import uuid
 import aiohttp
 from curl_cffi.requests import AsyncSession as CurlSession
+
+log = logging.getLogger(__name__)
 
 REFRESH_INTERVAL = 1800  # 30 min; access token valid ~1 hour
 
