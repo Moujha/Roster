@@ -7,7 +7,8 @@ Access token (Bearer):
        fetch('/get_access_token?reason=transpost&productType=web_player')
          .then(r=>r.json()).then(d=>console.log(d.accessToken))
      Valid ~1 hour.
-  2. SP_DC env var — automated. Calls open.spotify.com/api/token with the cookie.
+  2. SP_DC env var — automated. Playwright loads a Spotify page and intercepts
+     the Bearer token from the web player's first API request.
      Get sp_dc: open.spotify.com → DevTools → Application → Cookies → sp_dc
 
 Client token (required by Spotify's partner API alongside the Bearer token):
@@ -59,55 +60,64 @@ async def _fetch_token_from_env() -> str:
 
 
 async def _fetch_token_from_sp_dc(sp_dc: str) -> str:
-    # Try simple aiohttp first (no TLS fingerprinting needed for this endpoint)
+    """
+    Uses Playwright to load a Spotify page with the sp_dc cookie and intercepts
+    the Bearer token from the web player's first request to the partner API.
+    This is the only reliable method since Spotify's /api/token endpoint is broken.
+    """
     try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(
-                "https://open.spotify.com/api/token",
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/124.0.0.0 Safari/537.36"
-                    ),
-                    "Accept": "application/json",
-                    "Referer": "https://open.spotify.com/",
-                },
-                cookies={"sp_dc": sp_dc},
-            ) as resp:
-                body = await resp.text()
-                if resp.status == 200:
-                    import json as _json
-                    data = _json.loads(body)
-                    token = data.get("accessToken", "")
-                    if token:
-                        return token
-                log.warning(f"  [/api/token aiohttp] {resp.status}: {body[:300]}")
-    except Exception as exc:
-        log.warning(f"  [/api/token aiohttp] failed: {exc}")
-
-    # Fallback: curl_cffi with Chrome fingerprint
-    async with CurlSession(impersonate="chrome124") as curl:
-        resp = await curl.get(
-            "https://open.spotify.com/api/token",
-            cookies={"sp_dc": sp_dc},
-            headers={
-                "Accept": "application/json",
-                "Referer": "https://open.spotify.com/",
-            },
-        )
-        body = resp.text
-        if resp.status_code == 200:
-            import json as _json
-            data = _json.loads(body)
-            token = data.get("accessToken", "")
-            if token:
-                return token
+        from playwright.async_api import async_playwright
+    except ImportError:
         raise RuntimeError(
-            f"Spotify /api/token returned {resp.status_code}: {body[:400]}\n\n"
-            "If the error is 'invalid_client' or 'Bad Request', your sp_dc may be\n"
-            "expired. Refresh it from Chrome DevTools → Application → Cookies → sp_dc."
+            "Playwright not installed — required for automated token refresh.\n"
+            "Run: pip install playwright && playwright install chromium\n"
+            "Or set SPOTIFY_ACCESS_TOKEN manually (expires ~1hr):\n"
+            "  Browser console → "
+            "fetch('/get_access_token?reason=transpost&productType=web_player')"
+            ".then(r=>r.json()).then(d=>console.log(d.accessToken))"
         )
+
+    log.info("  [token] launching browser to intercept Spotify Bearer token…")
+    token_holder: list = []
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(headless=True)
+        context = await browser.new_context()
+        await context.add_cookies([{
+            "name": "sp_dc", "value": sp_dc,
+            "domain": ".spotify.com", "path": "/", "secure": True,
+        }])
+        page = await context.new_page()
+
+        def on_request(request):
+            if token_holder:
+                return
+            auth = request.headers.get("authorization", "")
+            if auth.startswith("Bearer ") and "api-partner.spotify.com" in request.url:
+                token_holder.append(auth[len("Bearer "):])
+
+        page.on("request", on_request)
+        await page.goto(
+            "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02",
+            wait_until="domcontentloaded",
+            timeout=30_000,
+        )
+        # Wait up to 15s for the partner API request to appear
+        for _ in range(30):
+            if token_holder:
+                break
+            await asyncio.sleep(0.5)
+
+        await browser.close()
+
+    if not token_holder:
+        raise RuntimeError(
+            "Could not intercept Spotify Bearer token from browser.\n"
+            "Make sure SP_DC is a valid, non-expired Spotify session cookie."
+        )
+
+    log.info("  [token] captured Bearer token via browser intercept")
+    return token_holder[0]
 
 
 async def _fetch_token(_session: aiohttp.ClientSession, skip_env: bool = False) -> str:
