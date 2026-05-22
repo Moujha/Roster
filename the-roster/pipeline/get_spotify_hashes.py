@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ARTIST_URL = "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02"  # Taylor Swift
+ALBUM_URL  = "https://open.spotify.com/album/1Mo4aZ8pdj6L1jx8zSwJnt"  # The Tortured Poets Department
 TARGET_OPS  = {"queryArtistOverview", "queryArtistDiscographyAll", "getAlbum"}
 
 
@@ -70,9 +71,16 @@ async def capture():
         print(f"Loading artist page: {ARTIST_URL}")
         await page.goto(ARTIST_URL, wait_until="networkidle", timeout=30_000)
 
-        # Scroll to trigger discography lazy-loads
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await asyncio.sleep(3)
+        # Scroll in steps to trigger discography lazy-loads
+        for _ in range(5):
+            await page.evaluate("window.scrollBy(0, 800)")
+            await asyncio.sleep(1)
+        await asyncio.sleep(2)
+
+        if "queryArtistDiscographyAll" not in queries or "getAlbum" not in queries:
+            print(f"\nLoading album page: {ALBUM_URL}")
+            await page.goto(ALBUM_URL, wait_until="networkidle", timeout=30_000)
+            await asyncio.sleep(3)
 
         await browser.close()
 
