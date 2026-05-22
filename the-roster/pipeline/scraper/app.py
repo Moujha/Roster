@@ -7,7 +7,7 @@ Access token (Bearer):
        fetch('/get_access_token?reason=transpost&productType=web_player')
          .then(r=>r.json()).then(d=>console.log(d.accessToken))
      Valid ~1 hour.
-  2. SP_DC env var — automated. Extracts token from Spotify homepage HTML.
+  2. SP_DC env var — automated. Calls open.spotify.com/api/token with the cookie.
      Get sp_dc: open.spotify.com → DevTools → Application → Cookies → sp_dc
 
 Client token (required by Spotify's partner API alongside the Bearer token):
@@ -16,7 +16,6 @@ Client token (required by Spotify's partner API alongside the Bearer token):
 """
 import asyncio
 import os
-import re
 import time
 import uuid
 import aiohttp
@@ -59,28 +58,29 @@ async def _fetch_token_from_env() -> str:
     return token or ""
 
 
-async def _fetch_token_from_homepage(sp_dc: str) -> str:
+async def _fetch_token_from_sp_dc(sp_dc: str) -> str:
     async with CurlSession(impersonate="chrome124") as curl:
         resp = await curl.get(
-            "https://open.spotify.com/",
+            "https://open.spotify.com/api/token",
             cookies={"sp_dc": sp_dc},
-            headers=_BROWSER_HEADERS,
+            headers={
+                **_BROWSER_HEADERS,
+                "Accept": "application/json",
+            },
         )
         if resp.status_code != 200:
-            raise RuntimeError(f"Spotify homepage returned {resp.status_code}: {resp.text[:200]}")
-        # Spotify embeds the token variously as:
-        # {"accessToken":"BQD..."} or accessToken":"BQD..." or accessToken\\":\\"BQD...
-        match = (
-            re.search(r'"accessToken"\s*:\s*"([A-Za-z0-9_\-]+)"', resp.text)
-            or re.search(r'accessToken["\s]*:\s*["\']([A-Za-z0-9_\-]+)["\']', resp.text)
-        )
-        if not match:
             raise RuntimeError(
-                "accessToken not found in Spotify homepage — "
-                "sp_dc may be expired or Spotify changed the page format. "
-                f"Page starts with: {resp.text[:200]}"
+                f"Spotify /api/token returned {resp.status_code} — "
+                "sp_dc cookie may be expired. Refresh it from browser DevTools → "
+                "Application → Cookies → sp_dc"
             )
-        return match.group(1)
+        data = resp.json()
+        token = data.get("accessToken", "")
+        if not token:
+            raise RuntimeError(
+                f"accessToken missing from /api/token response: {data}"
+            )
+        return token
 
 
 async def _fetch_token(_session: aiohttp.ClientSession, skip_env: bool = False) -> str:
@@ -90,7 +90,7 @@ async def _fetch_token(_session: aiohttp.ClientSession, skip_env: bool = False) 
             return token
     sp_dc = os.environ.get("SP_DC", "").strip()
     if sp_dc:
-        return await _fetch_token_from_homepage(sp_dc)
+        return await _fetch_token_from_sp_dc(sp_dc)
     raise RuntimeError(
         "No Spotify credentials found. Set either:\n"
         "  SPOTIFY_ACCESS_TOKEN — token from browser DevTools Console\n"
