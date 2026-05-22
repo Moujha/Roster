@@ -35,7 +35,7 @@ SEED_ARTISTS = [
     {"spotify_id": "0oSGxfWSnnOXhD2fKuz2Gy", "name": "David Bowie"},
     {"spotify_id": "4tZwfgrHOc3mvqYlEYSvVi", "name": "Daft Punk"},
     {"spotify_id": "6l3HvQ5sa6mXTsMTB19rO5", "name": "J. Cole"},
-    {"spotify_id": "1Fid2jjqsHViMX6xNH70hE", "name": "H.E.R."},
+    {"spotify_id": "3Y7RZ31TRPVadSFVy1o8os", "name": "H.E.R."},
 ]
 
 
