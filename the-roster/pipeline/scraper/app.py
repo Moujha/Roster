@@ -66,13 +66,22 @@ async def _fetch_token_from_sp_dc(sp_dc: str) -> str:
             headers={
                 **_BROWSER_HEADERS,
                 "Accept": "application/json",
+                "Origin": "https://open.spotify.com",
+                "Referer": "https://open.spotify.com/",
             },
         )
+        if resp.status_code == 400:
+            raise RuntimeError(
+                "Spotify /api/token returned 400 — your SP_DC cookie is expired.\n"
+                "Refresh it:\n"
+                "  1. Open open.spotify.com in Chrome (while logged in)\n"
+                "  2. DevTools (Cmd+Option+I) → Application → Cookies → open.spotify.com\n"
+                "  3. Copy the sp_dc value\n"
+                "  4. Update SP_DC in .env AND in the GitHub Actions secret"
+            )
         if resp.status_code != 200:
             raise RuntimeError(
-                f"Spotify /api/token returned {resp.status_code} — "
-                "sp_dc cookie may be expired. Refresh it from browser DevTools → "
-                "Application → Cookies → sp_dc"
+                f"Spotify /api/token returned {resp.status_code}: {resp.text[:300]}"
             )
         data = resp.json()
         token = data.get("accessToken", "")
