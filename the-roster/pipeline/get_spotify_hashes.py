@@ -18,8 +18,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ARTIST_URL = "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02"  # Taylor Swift
-ALBUM_URL  = "https://open.spotify.com/album/1Mo4aZ8pdj6L1jx8zSwJnt"  # The Tortured Poets Department
+ARTIST_URL      = "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02"  # Taylor Swift
+DISCOGRAPHY_URL = "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02/discography/all"
+ALBUM_URL       = "https://open.spotify.com/album/1Mo4aZ8pdj6L1jx8zSwJnt"  # The Tortured Poets Department
 TARGET_OPS  = {"queryArtistOverview", "queryArtistDiscographyAll", "getAlbum"}
 
 
@@ -77,7 +78,12 @@ async def capture():
             await asyncio.sleep(1)
         await asyncio.sleep(2)
 
-        if "queryArtistDiscographyAll" not in queries or "getAlbum" not in queries:
+        if "queryArtistDiscographyAll" not in queries:
+            print(f"\nLoading discography page: {DISCOGRAPHY_URL}")
+            await page.goto(DISCOGRAPHY_URL, wait_until="networkidle", timeout=30_000)
+            await asyncio.sleep(3)
+
+        if "getAlbum" not in queries:
             print(f"\nLoading album page: {ALBUM_URL}")
             await page.goto(ALBUM_URL, wait_until="networkidle", timeout=30_000)
             await asyncio.sleep(3)
