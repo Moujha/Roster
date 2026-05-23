@@ -1,177 +1,175 @@
 import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
 
 type MarketArtist = {
-  id: string
-  name: string
-  spotify_id: string
-  image_url: string | null
-  genre: string | null
-  price: number
-  price_change_pct: number | null
-  score: number
-  monthly_listeners: number
+  id: string; name: string; spotify_id: string
+  image_url: string | null; genre: string | null
+  price: number; price_change_pct: number | null
+  score: number; monthly_listeners: number
 }
 
 async function getMarket(): Promise<MarketArtist[]> {
   const supabase = await createClient()
   const today = new Date().toISOString().split('T')[0]
-
   const [artistsRes, pricesRes, statsRes] = await Promise.all([
     supabase.from('artists').select('id, name, spotify_id, image_url, genre'),
     supabase.from('market_prices').select('artist_id, price, price_change_pct').eq('date', today),
     supabase.from('artist_stats').select('artist_id, score_total, spotify_monthly_listeners').eq('date', today),
   ])
-
   const priceMap = new Map((pricesRes.data ?? []).map(p => [p.artist_id, p]))
   const statsMap = new Map((statsRes.data ?? []).map(s => [s.artist_id, s]))
-
   return (artistsRes.data ?? [])
-    .map(artist => ({
-      ...artist,
-      price: priceMap.get(artist.id)?.price ?? 0,
-      price_change_pct: priceMap.get(artist.id)?.price_change_pct ?? null,
-      score: statsMap.get(artist.id)?.score_total ?? 0,
-      monthly_listeners: statsMap.get(artist.id)?.spotify_monthly_listeners ?? 0,
+    .map(a => ({
+      ...a,
+      price: priceMap.get(a.id)?.price ?? 0,
+      price_change_pct: priceMap.get(a.id)?.price_change_pct ?? null,
+      score: statsMap.get(a.id)?.score_total ?? 0,
+      monthly_listeners: statsMap.get(a.id)?.spotify_monthly_listeners ?? 0,
     }))
     .sort((a, b) => b.price - a.price)
 }
 
-function fmtPrice(price: number): string {
-  if (price >= 1_000_000) return `$${(price / 1_000_000).toFixed(1)}M`
-  if (price >= 1_000) return `$${(price / 1_000).toFixed(0)}K`
-  return price === 0 ? '—' : `$${price}`
+function fmtPrice(p: number) {
+  if (p >= 1_000_000) return `$${(p / 1_000_000).toFixed(1)}M`
+  if (p >= 1_000) return `$${(p / 1_000).toFixed(0)}K`
+  return p === 0 ? '—' : `$${p}`
 }
-
-function fmtListeners(n: number): string {
+function fmtM(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
   return n > 0 ? String(n) : '—'
 }
 
-const AVATAR_COLORS = [
-  '#7c3aed', '#db2777', '#059669', '#d97706',
-  '#2563eb', '#dc2626', '#0891b2', '#65a30d',
-]
-
-function avatarColor(name: string): string {
+const AVATAR_COLORS = ['#7c3aed','#db2777','#059669','#d97706','#2563eb','#dc2626','#0891b2','#65a30d']
+function avatarBg(name: string) {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff
   return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
 }
 
+const TIER_COLORS: Record<string, string> = { Hot: 'var(--magenta)', Rising: 'var(--lime)', Steady: 'var(--cyan)', Rookie: 'var(--amber)' }
+function tierFromScore(score: number) {
+  if (score >= 70) return 'Hot'
+  if (score >= 55) return 'Rising'
+  if (score >= 40) return 'Steady'
+  return 'Rookie'
+}
+
 export default async function MarketPage() {
   const artists = await getMarket()
-  const today = new Date().toLocaleDateString('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
-  })
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="px-6 py-8 max-w-7xl mx-auto">
-      <div className="flex items-baseline justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Market</h1>
-          <p className="text-zinc-500 text-sm mt-1">{today} · {artists.length} artists</p>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', fontFamily: "'Pixelify Sans', monospace" }}>
+      {/* Top bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 18px', borderBottom: '2px solid var(--line)', background: 'var(--bg-panel)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>ROSTER</span>
+          <span className="tag" style={{ color: 'var(--ink-mid)' }}>·</span>
+          <span className="tag" style={{ color: 'var(--ink-hi)', fontSize: 11 }}>MARKET · {today.toUpperCase()}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{artists.length} ARTISTS</span>
         </div>
       </div>
 
-      {artists.length === 0 ? (
-        <div className="text-center py-32 text-zinc-600">
-          <p className="text-lg font-mono">No market data yet</p>
-          <p className="text-sm mt-2">Run the pipeline to populate scores and prices.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {artists.map((artist, rank) => {
-            const up = artist.price_change_pct !== null && artist.price_change_pct >= 0
-            const hasChange = artist.price_change_pct !== null
-            const initials = artist.name
-              .split(' ')
-              .map(w => w[0])
-              .join('')
-              .slice(0, 2)
-              .toUpperCase()
+      {/* Grid */}
+      <div style={{ padding: 12 }}>
+        {artists.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--ink-low)' }}>
+            <div className="display" style={{ fontSize: 32 }}>NO DATA YET</div>
+            <div className="tag" style={{ marginTop: 8 }}>RUN THE PIPELINE TO POPULATE SCORES AND PRICES</div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+            {artists.map((a, rank) => {
+              const tier = tierFromScore(a.score)
+              const tc = TIER_COLORS[tier]
+              const up = a.price_change_pct !== null && a.price_change_pct >= 0
+              const initials = a.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+              return (
+                <div key={a.id} style={{
+                  background: 'var(--bg-panel)',
+                  boxShadow: '0 0 0 2px var(--line), inset 0 0 0 1px #000',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.1s',
+                }}>
+                  {/* Card header */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px',
+                    background: 'linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev) 50%, var(--bg-tile) 50%, var(--bg-tile) 100%)',
+                    borderBottom: '2px solid var(--line)',
+                  }}>
+                    <span style={{ background: tc, color: '#100719', padding: '2px 6px', fontFamily: 'Silkscreen, monospace', fontSize: 8, letterSpacing: '1px', textTransform: 'uppercase' }}>{tier}</span>
+                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>#{rank + 1}</span>
+                  </div>
 
-            return (
-              <div
-                key={artist.id}
-                className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-5 hover:border-zinc-700 transition-colors"
-              >
-                {/* Header: avatar + name + rank */}
-                <div className="flex items-start gap-3 mb-5">
-                  {artist.image_url ? (
-                    <img
-                      src={artist.image_url}
-                      alt={artist.name}
-                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div
-                      className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0"
-                      style={{ backgroundColor: avatarColor(artist.name) }}
-                    >
-                      {initials}
+                  {/* Body */}
+                  <div style={{ padding: '10px 12px' }}>
+                    {/* Artist identity */}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+                      {a.image_url ? (
+                        <img src={a.image_url} alt={a.name} style={{ width: 44, height: 44, objectFit: 'cover', flexShrink: 0 }}/>
+                      ) : (
+                        <div style={{ width: 44, height: 44, background: avatarBg(a.name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'Silkscreen, monospace', flexShrink: 0 }}>{initials}</div>
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <div className="display" style={{ fontSize: 20, color: 'var(--ink-hi)', lineHeight: 0.9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                        <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginTop: 3 }}>{(a.genre ?? '—').toUpperCase().slice(0, 16)}</div>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-semibold leading-tight truncate">{artist.name}</p>
-                    {artist.genre ? (
-                      <p className="text-xs text-zinc-500 mt-0.5 capitalize">{artist.genre}</p>
-                    ) : (
-                      <p className="text-xs text-zinc-700 mt-0.5">—</p>
-                    )}
-                  </div>
-                  <span className="text-xs text-zinc-700 font-mono flex-shrink-0 pt-0.5">
-                    #{rank + 1}
-                  </span>
-                </div>
 
-                {/* Price row */}
-                <div className="flex items-baseline justify-between mb-4">
-                  <span className="text-2xl font-bold font-mono text-white">
-                    {fmtPrice(artist.price)}
-                  </span>
-                  {hasChange ? (
-                    <span className={`text-sm font-mono font-medium ${up ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {up ? '▲' : '▼'} {Math.abs(artist.price_change_pct!).toFixed(2)}%
-                    </span>
-                  ) : (
-                    <span className="text-xs text-zinc-600 font-mono">first run</span>
-                  )}
-                </div>
+                    {/* Price */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span className="display" style={{ fontSize: 26, color: 'var(--ink-hi)', lineHeight: 0.85, textShadow: '0 2px 0 #000' }}>
+                        {fmtPrice(a.price)}
+                      </span>
+                      {a.price_change_pct !== null ? (
+                        <span style={{ fontFamily: 'Silkscreen, monospace', fontSize: 10, color: up ? 'var(--lime)' : 'var(--rose)' }}>
+                          {up ? '▲' : '▼'} {Math.abs(a.price_change_pct).toFixed(2)}%
+                        </span>
+                      ) : (
+                        <span className="tag" style={{ color: 'var(--ink-low)' }}>FIRST RUN</span>
+                      )}
+                    </div>
 
-                {/* Score bar */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-zinc-600">Score</span>
-                    <span className="text-xs font-mono text-amber-400 font-medium">
-                      {artist.score}/100
-                    </span>
-                  </div>
-                  <div className="h-[3px] bg-zinc-800 rounded-full">
-                    <div
-                      className="h-[3px] bg-amber-400 rounded-full"
-                      style={{ width: `${artist.score}%` }}
-                    />
-                  </div>
-                </div>
+                    {/* Score bar */}
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span className="tag" style={{ color: 'var(--ink-low)' }}>PRESTIGE SCORE</span>
+                        <span className="tag" style={{ color: tc }}>{a.score}/100</span>
+                      </div>
+                      <div style={{ height: 4, background: 'var(--bg-deep)', display: 'flex', gap: 1 }}>
+                        {Array.from({ length: 10 }).map((_, i) => (
+                          <div key={i} style={{ flex: 1, background: i < Math.round(a.score / 10) ? tc : 'var(--bg-tile)' }} />
+                        ))}
+                      </div>
+                    </div>
 
-                {/* Footer */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-600">
-                    {fmtListeners(artist.monthly_listeners)} monthly listeners
-                  </span>
-                  <button
-                    disabled
-                    className="text-xs text-zinc-600 border border-zinc-800 px-3 py-1 rounded-md cursor-not-allowed"
-                  >
-                    Buy
-                  </button>
+                    {/* Footer */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>
+                        {fmtM(a.monthly_listeners)} LISTENERS
+                      </span>
+                      <button style={{
+                        fontFamily: 'Silkscreen, monospace', fontSize: 9,
+                        background: 'var(--bg-elev)', color: tc,
+                        border: 'none', padding: '5px 10px', cursor: 'not-allowed',
+                        boxShadow: `0 -2px 0 0 ${tc}33 inset, 0 2px 0 0 rgba(0,0,0,0.6) inset, 0 3px 0 0 #000`,
+                        textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.5,
+                      }}>SIGN</button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
