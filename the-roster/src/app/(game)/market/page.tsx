@@ -22,11 +22,11 @@ async function getMarket(): Promise<MarketArtist[]> {
       .limit(200),
   ])
   // Keep only the latest row per artist
-  const priceMap = new Map<string, typeof pricesRes.data[0]>()
+  const priceMap = new Map<string, NonNullable<typeof pricesRes.data>[0]>()
   for (const p of pricesRes.data ?? []) {
     if (!priceMap.has(p.artist_id)) priceMap.set(p.artist_id, p)
   }
-  const statsMap = new Map<string, typeof statsRes.data[0]>()
+  const statsMap = new Map<string, NonNullable<typeof statsRes.data>[0]>()
   for (const s of statsRes.data ?? []) {
     if (!statsMap.has(s.artist_id)) statsMap.set(s.artist_id, s)
   }
@@ -103,7 +103,8 @@ export default async function MarketPage() {
               const up = a.price_change_pct !== null && a.price_change_pct >= 0
               const initials = a.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
               return (
-                <div key={a.id} style={{
+                <Link key={a.id} href={`/artist/${a.id}`} style={{ textDecoration: 'none' }}>
+                <div style={{
                   background: 'var(--bg-panel)',
                   boxShadow: '0 0 0 2px var(--line), inset 0 0 0 1px #000',
                   cursor: 'pointer',
@@ -177,6 +178,7 @@ export default async function MarketPage() {
                     </div>
                   </div>
                 </div>
+                </Link>
               )
             })}
           </div>
