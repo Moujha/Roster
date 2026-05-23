@@ -9,16 +9,28 @@ type ArtistRow = {
 
 async function getDashboardData() {
   const supabase = await createClient()
-  const today = new Date().toISOString().split('T')[0]
 
   const [artistsRes, statsRes, pricesRes] = await Promise.all([
     supabase.from('artists').select('id, name, spotify_id, image_url, genre'),
-    supabase.from('artist_stats').select('artist_id, score_total, spotify_monthly_listeners').eq('date', today),
-    supabase.from('market_prices').select('artist_id, price, price_change_pct').eq('date', today),
+    supabase.from('artist_stats')
+      .select('artist_id, score_total, spotify_monthly_listeners, date')
+      .order('date', { ascending: false })
+      .limit(200),
+    supabase.from('market_prices')
+      .select('artist_id, price, price_change_pct, date')
+      .order('date', { ascending: false })
+      .limit(200),
   ])
 
-  const statsMap = new Map((statsRes.data ?? []).map(s => [s.artist_id, s]))
-  const priceMap = new Map((pricesRes.data ?? []).map(p => [p.artist_id, p]))
+  // Keep only the latest row per artist
+  const statsMap = new Map<string, typeof statsRes.data[0]>()
+  for (const s of statsRes.data ?? []) {
+    if (!statsMap.has(s.artist_id)) statsMap.set(s.artist_id, s)
+  }
+  const priceMap = new Map<string, typeof pricesRes.data[0]>()
+  for (const p of pricesRes.data ?? []) {
+    if (!priceMap.has(p.artist_id)) priceMap.set(p.artist_id, p)
+  }
 
   const artists: ArtistRow[] = (artistsRes.data ?? []).map(a => ({
     ...a,
