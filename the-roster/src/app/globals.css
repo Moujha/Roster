@@ -1,11 +1,65 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Jersey+25&family=Pixelify+Sans:wght@400;500;700&family=Silkscreen:wght@400;700&display=swap');
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: 'Pixelify Sans', monospace;
+  --font-mono: 'Silkscreen', monospace;
 }
 
-body {
-  background: #0a0a0a;
-  color: #fafafa;
+:root {
+  --bg-deep: #0e0a18;
+  --bg-panel: #181226;
+  --bg-elev: #221833;
+  --bg-tile: #2a1e3d;
+  --line: #3a2a55;
+  --line-soft: #2c1f44;
+  --ink-hi: #f5eaff;
+  --ink: #d3c4e8;
+  --ink-mid: #8e7ab0;
+  --ink-low: #5a4a78;
+  --lime: #c8ff3a;
+  --lime-deep: #7ab512;
+  --magenta: #ff3ec5;
+  --cyan: #3ee0ff;
+  --amber: #ffb13a;
+  --rose: #ff5478;
+  --violet: #9b6bff;
 }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg-deep);
+  color: var(--ink);
+  font-family: 'Pixelify Sans', monospace;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+svg { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+.pxl-frame {
+  position: relative;
+  background: var(--bg-panel);
+  box-shadow: 0 0 0 2px var(--line), 0 4px 0 0 #000;
+}
+
+.tag {
+  font-family: 'Silkscreen', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.display {
+  font-family: 'Jersey 25', 'Pixelify Sans', monospace;
+}
+
+.dot-bg {
+  background-color: var(--bg-deep);
+  background-image: radial-gradient(var(--line-soft) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+.spark { display: flex; align-items: flex-end; }
+.spark > i { display: block; background: currentColor; }
