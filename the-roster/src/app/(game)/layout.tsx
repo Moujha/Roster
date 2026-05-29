@@ -3,12 +3,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
-  { icon: '◼', label: 'LABEL HQ',    href: '/dashboard' },
-  { icon: '◆', label: 'ROSTER',      href: '/market' },
-  { icon: '✦', label: 'SCOUT',       href: '/scout' },
-  { icon: '$', label: 'A&R LAB',     href: '/anr' },
-  { icon: '▲', label: 'MINI LEAGUE', href: '/league' },
-  { icon: '◉', label: 'WEEKLY OBJ.', href: '/portfolio' },
+  { icon: '◼', label: 'LABEL HQ',  href: '/dashboard' },
+  { icon: '◆', label: 'SEARCH',    href: '/search' },
+  { icon: '$', label: 'CONTRACTS', href: '/contracts' },
+  { icon: '◉', label: 'HISTORY',   href: '/history' },
 ]
 
 function SideItem({ icon, label, href }: { icon: string; label: string; href: string }) {
@@ -55,10 +53,7 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
 
         {/* Nav */}
         <nav style={{ padding: '8px 0', flex: 1 }}>
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, padding: '8px 16px' }}>OFFICE</div>
-          {NAV_ITEMS.slice(0, 4).map(item => <SideItem key={item.href} {...item}/>)}
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, padding: '12px 16px 8px' }}>COMPETE</div>
-          {NAV_ITEMS.slice(4).map(item => <SideItem key={item.href} {...item}/>)}
+          {NAV_ITEMS.map(item => <SideItem key={item.href} {...item}/>)}
         </nav>
 
         {/* User */}
