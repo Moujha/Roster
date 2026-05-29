@@ -24,7 +24,7 @@ from supabase import create_client
 
 from .app import get_token, refresh_token_loop
 from .spotify import scrape_artist
-from .supabase_store import store_artist_stats, store_track_stats
+from .supabase_store import store_scrape_raw
 
 load_dotenv()
 logging.basicConfig(
@@ -67,8 +67,9 @@ async def run() -> int:
                 try:
                     result = await scrape_artist(session, artist["spotify_id"])
 
-                    store_artist_stats(supabase, artist["id"], result["overview"], scraped_at)
-                    store_track_stats(supabase, artist["id"], result["all_tracks"], scraped_at)
+                    overview = result["overview"].copy()
+                    overview["top_tracks"] = result["all_tracks"]
+                    store_scrape_raw(supabase, artist["id"], overview, scraped_at)
 
                     listeners = result["overview"].get("monthly_listeners")
                     track_count = len(result["all_tracks"])
