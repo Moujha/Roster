@@ -85,7 +85,7 @@ CREATE INDEX ON contracts (end_date) WHERE status = 'active';
 CREATE TABLE label_history (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   label_id             uuid NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
-  contract_id          uuid NOT NULL REFERENCES contracts(id),
+  contract_id          uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
   artist_name          text NOT NULL,
   artist_tier          text NOT NULL,
   listeners_at_signing bigint,
@@ -97,3 +97,5 @@ CREATE TABLE label_history (
   reason               text NOT NULL CHECK (reason IN ('natural','dropped')),
   completed_at         date NOT NULL
 );
+
+CREATE INDEX ON label_history (label_id, completed_at DESC);
