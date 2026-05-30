@@ -6,9 +6,11 @@ const TIER_COLORS: Record<Tier, string> = {
   rising: 'var(--cyan)', established: 'var(--amber)', major: 'var(--rose)',
 }
 function fmtUSD(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`
-  return `$${n.toFixed(0)}`
+  const sign = n < 0 ? '-' : ''
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`
+  return `${sign}$${abs.toFixed(0)}`
 }
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -40,12 +42,12 @@ export default async function HistoryPage() {
             display: 'grid', gridTemplateColumns: '1fr 90px 120px 100px 110px 100px 80px',
             gap: 10, padding: '8px 16px', borderBottom: '2px solid var(--line)',
           }}>
-            {['ARTIST', 'TIER', 'DATES', 'ROYALTIES', 'SIGNING COST', 'NET P&L', 'REASON'].map(h => (
+            {['ARTIST', 'TIER', 'COMPLETED', 'ROYALTIES', 'SIGNING COST', 'NET P&L', 'REASON'].map(h => (
               <span key={h} className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>{h}</span>
             ))}
           </div>
           {history.map(h => {
-            const tc = TIER_COLORS[h.artist_tier as Tier] ?? 'var(--ink-mid)'
+            const tc = TIER_COLORS[h.artist_tier] ?? 'var(--ink-mid)'
             return (
               <div key={h.id} style={{
                 display: 'grid', gridTemplateColumns: '1fr 90px 120px 100px 110px 100px 80px',

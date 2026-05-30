@@ -7,13 +7,15 @@ type ContractRow = Contract & { artists: { name: string; tier: string; spotify_i
 
 const TIER_COLORS: Record<string, string> = {
   underground: 'var(--violet)', emerging: 'var(--lime)',
-  rising: 'var(--cyan)', established: 'var(--amber)',
+  rising: 'var(--cyan)', established: 'var(--amber)', major: 'var(--rose)',
 }
 
 function fmtUSD(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`
-  return `$${n.toFixed(0)}`
+  const sign = n < 0 ? '-' : ''
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`
+  return `${sign}$${abs.toFixed(0)}`
 }
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -49,6 +51,7 @@ export default async function ContractsPage() {
             EXPIRED -- ACTION REQUIRED
           </div>
           {expired.map(c => {
+            if (!c.artists) return null
             const tc = TIER_COLORS[c.artists.tier] ?? 'var(--ink-mid)'
             return (
               <div key={c.id} style={{
@@ -88,6 +91,7 @@ export default async function ContractsPage() {
             No active contracts. <Link href="/search" style={{ color: 'var(--lime)' }}>Find an artist</Link>
           </div>
         ) : active.map(c => {
+          if (!c.artists) return null
           const tc = TIER_COLORS[c.artists.tier] ?? 'var(--ink-mid)'
           const netPnl = c.royalties_earned - c.signing_bonus - c.dev_spend_total
           const wl = weeksLeft(c.end_date)
