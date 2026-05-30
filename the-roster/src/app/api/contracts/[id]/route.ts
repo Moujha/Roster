@@ -61,9 +61,14 @@ export async function DELETE(
   const today = new Date().toISOString().slice(0, 10)
   const netPnl = contract.royalties_earned - contract.signing_bonus - contract.dev_spend_total
 
-  await supabase.from('contracts').update({ status: 'dropped' }).eq('id', id)
-  await supabase.from('labels').update({ treasury: label.treasury - penalty }).eq('id', user.id)
-  await supabase.from('label_history').insert({
+  const { error: dropErr } = await supabase.from('contracts').update({ status: 'dropped' }).eq('id', id)
+  if (dropErr) return Response.json({ error: dropErr.message }, { status: 500 })
+
+  const { error: treasuryErr } = await supabase.from('labels')
+    .update({ treasury: label.treasury - penalty }).eq('id', user.id)
+  if (treasuryErr) return Response.json({ error: treasuryErr.message }, { status: 500 })
+
+  const { error: histErr } = await supabase.from('label_history').insert({
     label_id: user.id,
     contract_id: id,
     artist_name: artist?.name ?? '',
@@ -77,6 +82,7 @@ export async function DELETE(
     reason: 'dropped',
     completed_at: today,
   })
+  if (histErr) return Response.json({ error: histErr.message }, { status: 500 })
 
   return Response.json({ ok: true, penalty })
 }

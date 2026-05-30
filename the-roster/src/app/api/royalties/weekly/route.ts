@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
+  if (!process.env.CRON_SECRET) {
+    return Response.json({ error: 'Server misconfigured' }, { status: 500 })
+  }
   if (request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }

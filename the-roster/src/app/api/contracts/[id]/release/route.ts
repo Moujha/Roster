@@ -21,6 +21,10 @@ export async function POST(
   if (contract.status !== 'expired')
     return Response.json({ error: 'Can only release expired contracts' }, { status: 400 })
 
+  const { error: updateErr } = await supabase
+    .from('contracts').update({ status: 'dropped' }).eq('id', id)
+  if (updateErr) return Response.json({ error: updateErr.message }, { status: 500 })
+
   const { data: artist } = await supabase
     .from('artists')
     .select('name, tier')

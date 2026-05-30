@@ -66,6 +66,18 @@ export async function POST(request: Request) {
   if (artist.tier === 'major')
     return Response.json({ error: 'Major artists are not signable' }, { status: 400 })
 
+  // Check for existing active contract with this artist
+  const { count: existingCount } = await supabase
+    .from('contracts')
+    .select('*', { count: 'exact', head: true })
+    .eq('label_id', user.id)
+    .eq('artist_id', artist.id)
+    .eq('status', 'active')
+
+  if ((existingCount ?? 0) > 0) {
+    return Response.json({ error: 'You already have an active contract with this artist' }, { status: 409 })
+  }
+
   const range = BONUS_RANGES[artist.tier]
   if (range && (signing_bonus < range[0] || signing_bonus > range[1]))
     return Response.json({ error: `Signing bonus out of range for ${artist.tier} (${range[0]}-${range[1]})` }, { status: 400 })
