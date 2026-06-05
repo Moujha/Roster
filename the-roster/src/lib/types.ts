@@ -68,3 +68,14 @@ export interface LabelHistory {
   reason: 'natural' | 'dropped'
   completed_at: string
 }
+
+export type EventType = 'royalty_paid' | 'artist_signed' | 'contract_expired' | 'tier_up'
+
+export interface LabelEvent {
+  id: string
+  label_id: string
+  event_type: EventType
+  artist_name: string
+  payload: Record<string, unknown>
+  created_at: string
+}
