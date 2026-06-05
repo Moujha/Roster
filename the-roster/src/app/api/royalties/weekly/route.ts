@@ -69,12 +69,14 @@ export async function POST(request: Request) {
       actualWeeklyStreams,
     )
 
-    const [{ data: contract }, { data: label }] = await Promise.all([
+    const [{ data: contract, error: contractReadErr }, { data: label, error: labelReadErr }] = await Promise.all([
       supabase.from('contracts').select('royalties_earned').eq('id', c.id).single(),
       supabase.from('labels').select('treasury').eq('id', c.label_id).single(),
     ])
 
-    await Promise.all([
+    if (contractReadErr || labelReadErr) continue
+
+    const [{ error: contractWriteErr }, { error: labelWriteErr }] = await Promise.all([
       supabase.from('contracts')
         .update({ royalties_earned: (contract?.royalties_earned ?? 0) + royalties })
         .eq('id', c.id),
@@ -82,6 +84,8 @@ export async function POST(request: Request) {
         .update({ treasury: (label?.treasury ?? 0) + royalties })
         .eq('id', c.label_id),
     ])
+
+    if (contractWriteErr || labelWriteErr) continue
 
     processed++
   }
@@ -91,14 +95,16 @@ export async function POST(request: Request) {
   let expired = 0
 
   for (const c of toExpire) {
-    const [{ data: contract }, { data: artist }] = await Promise.all([
+    const [{ data: contract, error: contractFetchErr }, { data: artist, error: artistFetchErr }] = await Promise.all([
       supabase.from('contracts').select('royalties_earned').eq('id', c.id).single(),
       supabase.from('artists').select('name, tier').eq('id', c.artist_id).single(),
     ])
 
+    if (contractFetchErr || artistFetchErr) continue
+
     const totalRoyalties = contract?.royalties_earned ?? 0
 
-    await Promise.all([
+    const [{ error: historyErr }, { error: expireErr }] = await Promise.all([
       supabase.from('label_history').insert({
         label_id: c.label_id,
         contract_id: c.id,
@@ -115,6 +121,8 @@ export async function POST(request: Request) {
       }),
       supabase.from('contracts').update({ status: 'expired' }).eq('id', c.id),
     ])
+
+    if (historyErr || expireErr) continue
 
     expired++
   }
