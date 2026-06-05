@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
-import { computeWeeklyRoyalties } from '@/lib/royalty'
+import { computeEngagementMultiplier, computeWeeklyRoyalties } from '@/lib/royalty'
 
 async function handler(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -33,6 +33,13 @@ async function handler(request: Request) {
     .eq('status', 'active')
 
   if (!contracts?.length) return Response.json({ processed: 0, expired: 0, date: today })
+
+  // Batch-fetch artist names + tiers for event writing and tier-up detection
+  const { data: artistRows } = await supabase
+    .from('artists')
+    .select('id, name, tier, tier_updated_at')
+    .in('id', contracts.map(c => c.artist_id))
+  const artistMap = new Map((artistRows ?? []).map(a => [a.id, a]))
 
   // artist_id → monthly_listeners at statsDate, used in expiry pass
   const listenersMap = new Map<string, number>()
@@ -92,6 +99,17 @@ async function handler(request: Request) {
     if (contractWriteErr || labelWriteErr) continue
 
     processed++
+    const multiplier = computeEngagementMultiplier(statsRow.monthly_listeners, actualWeeklyStreams)
+    await supabase.from('label_events').insert({
+      label_id: c.label_id,
+      event_type: 'royalty_paid',
+      artist_name: artistMap.get(c.artist_id)?.name ?? 'Unknown',
+      payload: {
+        amount: royalties,
+        multiplier,
+        has_stream_data: actualWeeklyStreams !== null,
+      },
+    })
   }
 
   // ── Pass 2: expire contracts past end_date ───────────────────────────────────
@@ -129,6 +147,33 @@ async function handler(request: Request) {
     })
 
     expired++
+    await supabase.from('label_events').insert({
+      label_id: c.label_id,
+      event_type: 'contract_expired',
+      artist_name: artist?.name ?? 'Unknown',
+      payload: {
+        net_pnl: totalRoyalties - c.signing_bonus - c.dev_spend_total,
+        total_royalties: totalRoyalties,
+        signing_bonus: c.signing_bonus,
+        reason: 'natural',
+      },
+    })
+  }
+
+  // ── Pass 3: detect tier-ups on still-active contracts ────────────────────────
+  const expiredIds = new Set(toExpire.map(c => c.id))
+  const remaining = contracts.filter(c => !expiredIds.has(c.id))
+
+  for (const c of remaining) {
+    const artist = artistMap.get(c.artist_id)
+    if (!artist?.tier_updated_at) continue
+    if (artist.tier_updated_at < statsWeekStart || artist.tier_updated_at > statsDate) continue
+    await supabase.from('label_events').insert({
+      label_id: c.label_id,
+      event_type: 'tier_up',
+      artist_name: artist.name,
+      payload: { new_tier: artist.tier },
+    })
   }
 
   return Response.json({ processed, expired, date: today })
