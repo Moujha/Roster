@@ -20,8 +20,8 @@ export default function SearchBar({ initial = '' }: { initial?: string }) {
       autoFocus
       style={{
         width: '100%', background: 'var(--bg-panel)', border: '2px solid var(--lime)',
-        color: 'var(--ink-hi)', fontFamily: 'Silkscreen, monospace', fontSize: 10,
-        padding: '12px 16px', outline: 'none', letterSpacing: 1, display: 'block',
+        color: 'var(--ink-hi)', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: 13,
+        padding: '12px 16px', outline: 'none', letterSpacing: 0.3, display: 'block',
       }}
     />
   )

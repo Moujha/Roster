@@ -20,11 +20,12 @@ function ArtistCard({ artist, metric }: {
       <div className="display" style={{ fontSize: 18, color: 'var(--ink-hi)', lineHeight: 1 }}>{artist.name}</div>
       <div style={{ marginTop: 6 }}>
         <span className="tag" style={{
-          color: TIER_COLORS[artist.tier] ?? 'var(--ink-mid)', fontSize: 8,
-          border: `1px solid ${TIER_COLORS[artist.tier] ?? 'var(--line)'}`, padding: '1px 4px',
+          color: TIER_COLORS[artist.tier] ?? 'var(--ink-mid)', fontSize: 9,
+          border: `1px solid ${TIER_COLORS[artist.tier] ?? 'var(--line)'}`, padding: '1px 5px',
+          background: `${TIER_COLORS[artist.tier] ?? 'transparent'}18`,
         }}>{artist.tier.toUpperCase()}</span>
         {artist.genre && (
-          <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginLeft: 6 }}>
+          <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginLeft: 6 }}>
             {artist.genre.toUpperCase().slice(0, 16)}
           </span>
         )}
@@ -203,7 +204,7 @@ export default async function SearchPage({
   const onRamps = !q ? await getOnRamps(user!.id) : null
 
   return (
-    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: "'Pixelify Sans', monospace", maxWidth: 960 }}>
+    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 960 }}>
       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 8 }}>FIND ARTISTS</div>
       <div style={{ marginBottom: 24 }}>
         <SearchBar initial={q ?? ''} />
