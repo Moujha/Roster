@@ -9,7 +9,7 @@ export function ReleaseButton({ contractId }: { contractId: string }) {
   }
   return (
     <button onClick={handleRelease} style={{
-      fontFamily: 'Silkscreen, monospace', fontSize: 8, padding: '4px 10px',
+      fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '4px 10px',
       border: '1px solid var(--rose)', color: 'var(--rose)', background: 'transparent', cursor: 'pointer',
     }}>RELEASE</button>
   )
@@ -26,7 +26,7 @@ export function DropButton({ contractId, artistName }: { contractId: string; art
   }
   return (
     <button onClick={handleDrop} style={{
-      fontFamily: 'Silkscreen, monospace', fontSize: 8, padding: '4px 10px',
+      fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '4px 10px',
       border: '1px solid var(--rose)', color: 'var(--rose)', background: 'transparent', cursor: 'pointer',
     }}>DROP</button>
   )

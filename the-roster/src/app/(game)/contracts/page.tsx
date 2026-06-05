@@ -40,7 +40,7 @@ export default async function ContractsPage() {
   const expired = contracts.filter(c => c.status === 'expired')
 
   return (
-    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: "'Pixelify Sans', monospace", maxWidth: 900 }}>
+    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 900 }}>
       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>CONTRACTS</div>
       <div className="display" style={{ fontSize: 32, color: 'var(--ink-hi)', marginBottom: 24 }}>MANAGE ROSTER</div>
 
@@ -60,7 +60,7 @@ export default async function ContractsPage() {
               }}>
                 <div>
                   <span style={{ color: 'var(--ink-hi)', fontSize: 14 }}>{c.artists.name}</span>
-                  <span className="tag" style={{ color: tc, fontSize: 8, marginLeft: 8, border: `1px solid ${tc}`, padding: '1px 4px' }}>
+                  <span className="tag" style={{ color: tc, fontSize: 9, marginLeft: 8, border: `1px solid ${tc}`, padding: '1px 5px', background: `${tc}18` }}>
                     {c.artists.tier.toUpperCase()}
                   </span>
                   <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginTop: 4 }}>
@@ -69,7 +69,7 @@ export default async function ContractsPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Link href={`/artist/${c.artists.spotify_id}`} style={{
-                    fontFamily: 'Silkscreen, monospace', fontSize: 8, padding: '5px 10px',
+                    fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '5px 10px',
                     border: '1px solid var(--lime)', color: 'var(--lime)', textDecoration: 'none',
                   }}>RE-SIGN</Link>
                   <ReleaseButton contractId={c.id} />
@@ -104,24 +104,24 @@ export default async function ContractsPage() {
               <div>
                 <Link href={`/artist/${c.artists.spotify_id}`} style={{ color: 'var(--ink-hi)', textDecoration: 'none', fontSize: 14 }}>{c.artists.name}</Link>
                 <div style={{ marginTop: 3 }}>
-                  <span className="tag" style={{ color: tc, fontSize: 8, border: `1px solid ${tc}`, padding: '1px 4px' }}>{c.artists.tier.toUpperCase()}</span>
-                  <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginLeft: 8 }}>{fmtDate(c.start_date)} - {fmtDate(c.end_date)}</span>
+                  <span className="tag" style={{ color: tc, fontSize: 9, border: `1px solid ${tc}`, padding: '1px 5px', background: `${tc}18` }}>{c.artists.tier.toUpperCase()}</span>
+                  <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginLeft: 8 }}>{fmtDate(c.start_date)} - {fmtDate(c.end_date)}</span>
                 </div>
               </div>
               <div>
-                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>SIGNED</div>
+                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>SIGNED</div>
                 <div className="tag" style={{ color: 'var(--ink-hi)', fontSize: 11, marginTop: 2 }}>{fmtUSD(c.signing_bonus)}</div>
               </div>
               <div>
-                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>ROYALTIES</div>
+                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>ROYALTIES</div>
                 <div className="tag" style={{ color: 'var(--lime)', fontSize: 11, marginTop: 2 }}>{fmtUSD(c.royalties_earned)}</div>
               </div>
               <div>
-                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>NET P&L</div>
+                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>NET P&L</div>
                 <div className="tag" style={{ color: netPnl >= 0 ? 'var(--lime)' : 'var(--rose)', fontSize: 11, marginTop: 2 }}>{netPnl >= 0 ? '+' : ''}{fmtUSD(netPnl)}</div>
               </div>
               <div>
-                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>SPLIT / WKS</div>
+                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>SPLIT / WKS</div>
                 <div className="tag" style={{ color: 'var(--ink-hi)', fontSize: 11, marginTop: 2 }}>{c.rev_split_label_pct}% / {wl}w</div>
               </div>
               <DropButton contractId={c.id} artistName={c.artists.name} />
