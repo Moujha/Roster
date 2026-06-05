@@ -30,7 +30,7 @@ export default function SignupPage() {
     <div style={{
       minHeight: '100vh', background: 'var(--bg-deep)', display: 'flex',
       alignItems: 'center', justifyContent: 'center', padding: 24,
-      fontFamily: "'Pixelify Sans', monospace",
+      fontFamily: 'Inter, sans-serif',
     }}>
       <div style={{ width: '100%', maxWidth: 360 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
@@ -82,7 +82,7 @@ export default function SignupPage() {
               disabled={loading}
               style={{
                 marginTop: 4,
-                fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '12px',
+                fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '12px',
                 border: '2px solid var(--lime)', color: 'var(--lime)',
                 background: 'rgba(200,255,58,0.08)', cursor: loading ? 'not-allowed' : 'pointer',
                 letterSpacing: 1, opacity: loading ? 0.6 : 1,
@@ -95,7 +95,7 @@ export default function SignupPage() {
 
         <div style={{ textAlign: 'center', marginTop: 16 }}>
           <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>ALREADY HAVE AN ACCOUNT? </span>
-          <Link href="/login" style={{ fontFamily: 'Silkscreen, monospace', fontSize: 9, color: 'var(--cyan)', textDecoration: 'none' }}>
+          <Link href="/login" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, color: 'var(--cyan)', textDecoration: 'none' }}>
             SIGN IN
           </Link>
         </div>

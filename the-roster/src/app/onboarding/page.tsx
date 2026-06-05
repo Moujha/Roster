@@ -42,7 +42,7 @@ export default function OnboardingPage() {
   }
 
   const btnStyle = (active: boolean): React.CSSProperties => ({
-    width: '100%', fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '10px',
+    width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '10px',
     border: `2px solid var(--lime)`, color: 'var(--lime)', background: 'rgba(200,255,58,0.08)',
     cursor: active ? 'pointer' : 'not-allowed', letterSpacing: 1,
     opacity: active ? 1 : 0.35,
@@ -52,7 +52,7 @@ export default function OnboardingPage() {
     <div style={{
       minHeight: '100vh', background: 'var(--bg-deep)', display: 'flex',
       alignItems: 'center', justifyContent: 'center', padding: 24,
-      fontFamily: "'Pixelify Sans', monospace",
+      fontFamily: 'Inter, sans-serif',
     }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
         {/* Logo + progress */}
@@ -106,7 +106,7 @@ export default function OnboardingPage() {
                       padding: '10px 6px', textAlign: 'center', cursor: 'pointer',
                     }}
                   >
-                    <div className="tag" style={{ color: sel ? SEL_COLORS[idx] : 'var(--ink-mid)', fontSize: 8 }}>{g}</div>
+                    <div className="tag" style={{ color: sel ? SEL_COLORS[idx] : 'var(--ink-mid)', fontSize: 9 }}>{g}</div>
                   </div>
                 )
               })}
@@ -118,7 +118,7 @@ export default function OnboardingPage() {
               }}>
                 <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>selected:</span>
                 {genres.map((g, i) => (
-                  <span key={g} className="tag" style={{ color: SEL_COLORS[i], border: `1px solid ${SEL_COLORS[i]}`, padding: '2px 6px', fontSize: 8 }}>{g}</span>
+                  <span key={g} className="tag" style={{ color: SEL_COLORS[i], border: `1px solid ${SEL_COLORS[i]}`, padding: '2px 6px', fontSize: 9 }}>{g}</span>
                 ))}
               </div>
             )}
@@ -141,7 +141,7 @@ export default function OnboardingPage() {
             <button
               onClick={() => router.push('/dashboard')}
               style={{
-                width: '100%', fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '10px',
+                width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '10px',
                 border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent',
                 cursor: 'pointer', letterSpacing: 1,
               }}
