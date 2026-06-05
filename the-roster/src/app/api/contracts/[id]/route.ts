@@ -84,5 +84,17 @@ export async function DELETE(
   })
   if (histErr) return Response.json({ error: histErr.message }, { status: 500 })
 
+  await supabase.from('label_events').insert({
+    label_id: user.id,
+    event_type: 'contract_expired',
+    artist_name: artist?.name ?? '',
+    payload: {
+      net_pnl: netPnl,
+      total_royalties: contract.royalties_earned,
+      signing_bonus: contract.signing_bonus,
+      reason: 'dropped',
+    },
+  })
+
   return Response.json({ ok: true, penalty })
 }
