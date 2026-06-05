@@ -41,7 +41,7 @@ export default async function DashboardPage() {
   const expired = contracts.filter(c => c.status === 'expired')
 
   return (
-    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: "'Pixelify Sans', monospace", maxWidth: 960 }}>
+    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 960 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
           <div className="display" style={{ fontSize: 36, color: 'var(--ink-hi)', lineHeight: 0.9 }}>{label.label_name}</div>
         </div>
         <Link href="/search" style={{
-          fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '8px 16px',
+          fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '8px 16px',
           border: '2px solid var(--lime)', color: 'var(--lime)',
           background: 'rgba(200,255,58,0.08)', textDecoration: 'none', letterSpacing: 1,
         }}>+ SIGN ARTIST</Link>
@@ -59,20 +59,20 @@ export default async function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
         <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)', padding: 16 }}>
           <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>TREASURY</div>
-          <div className="display" style={{ fontSize: 42, color: 'var(--amber)', lineHeight: 1, marginTop: 4 }}>{fmtUSD(label.treasury)}</div>
+          <div className="display" style={{ fontSize: 42, color: 'var(--amber)', lineHeight: 1, marginTop: 6 }}>{fmtUSD(label.treasury)}</div>
         </div>
         <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)', padding: 16 }}>
           <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>ROYALTIES EARNED</div>
           {active.length === 0
             ? <div style={{ color: 'var(--ink-mid)', fontSize: 12, marginTop: 8 }}>Sign your first artist to start earning</div>
-            : <div className="display" style={{ fontSize: 42, color: 'var(--lime)', lineHeight: 1, marginTop: 4 }}>
+            : <div className="display" style={{ fontSize: 42, color: 'var(--lime)', lineHeight: 1, marginTop: 6 }}>
                 {fmtUSD(active.reduce((s, c) => s + c.royalties_earned, 0))}
               </div>
           }
         </div>
         <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)', padding: 16 }}>
           <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>ROSTER</div>
-          <div className="display" style={{ fontSize: 42, color: active.length >= 5 ? 'var(--rose)' : 'var(--cyan)', lineHeight: 1, marginTop: 4 }}>
+          <div className="display" style={{ fontSize: 42, color: active.length >= 5 ? 'var(--rose)' : 'var(--cyan)', lineHeight: 1, marginTop: 6 }}>
             {active.length} / 5
           </div>
           <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginTop: 4 }}>
@@ -94,17 +94,17 @@ export default async function DashboardPage() {
             }}>
               <div>
                 <span style={{ color: 'var(--ink-hi)', fontSize: 13 }}>{c.artists.name}</span>
-                <span className="tag" style={{ color: TIER_COLORS[c.artists.tier] ?? 'var(--ink-mid)', fontSize: 8, marginLeft: 8, border: `1px solid ${TIER_COLORS[c.artists.tier] ?? 'var(--line)'}`, padding: '1px 4px' }}>
+                <span className="tag" style={{ color: TIER_COLORS[c.artists.tier] ?? 'var(--ink-mid)', fontSize: 9, marginLeft: 8, border: `1px solid ${TIER_COLORS[c.artists.tier] ?? 'var(--line)'}`, padding: '1px 4px' }}>
                   {c.artists.tier.toUpperCase()}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <Link href={`/artist/${c.artists.spotify_id}`} style={{
-                  fontFamily: 'Silkscreen, monospace', fontSize: 8, padding: '4px 10px',
+                  fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '4px 10px',
                   border: '1px solid var(--lime)', color: 'var(--lime)', textDecoration: 'none',
                 }}>RE-SIGN</Link>
                 <Link href="/contracts" style={{
-                  fontFamily: 'Silkscreen, monospace', fontSize: 8, padding: '4px 10px',
+                  fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '4px 10px',
                   border: '1px solid var(--rose)', color: 'var(--rose)', textDecoration: 'none',
                 }}>RELEASE</Link>
               </div>
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
           <div style={{ padding: 40, textAlign: 'center' }}>
             <div style={{ color: 'var(--ink-mid)', fontSize: 13, marginBottom: 16 }}>Your roster is empty</div>
             <Link href="/search" style={{
-              fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '10px 20px',
+              fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 20px',
               border: '2px solid var(--lime)', color: 'var(--lime)', textDecoration: 'none',
             }}>SIGN YOUR FIRST ARTIST</Link>
           </div>
@@ -142,8 +142,9 @@ export default async function DashboardPage() {
                 </Link>
                 <div style={{ marginTop: 3 }}>
                   <span className="tag" style={{
-                    color: TIER_COLORS[c.artists.tier] ?? 'var(--ink-mid)', fontSize: 8,
-                    border: `1px solid ${TIER_COLORS[c.artists.tier] ?? 'var(--line)'}`, padding: '1px 4px',
+                    color: TIER_COLORS[c.artists.tier] ?? 'var(--ink-mid)', fontSize: 9,
+                    border: `1px solid ${TIER_COLORS[c.artists.tier] ?? 'var(--line)'}`, padding: '1px 5px',
+                    background: `${TIER_COLORS[c.artists.tier] ?? 'transparent'}18`,
                   }}>{c.artists.tier.toUpperCase()}</span>
                 </div>
               </div>
@@ -164,7 +165,7 @@ export default async function DashboardPage() {
                 <div className="tag" style={{ color: 'var(--ink-hi)', fontSize: 13, marginTop: 2 }}>{c.rev_split_label_pct}%</div>
               </div>
               <Link href="/contracts" style={{
-                fontFamily: 'Silkscreen, monospace', fontSize: 8, padding: '5px 10px',
+                fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '5px 10px',
                 border: '1px solid var(--line)', color: 'var(--ink-mid)', textDecoration: 'none',
               }}>MANAGE</Link>
             </div>
