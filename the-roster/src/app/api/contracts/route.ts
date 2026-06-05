@@ -125,5 +125,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Treasury update failed - contract rolled back' }, { status: 500 })
   }
 
+  await supabase.from('label_events').insert({
+    label_id: user.id,
+    event_type: 'artist_signed',
+    artist_name: artist.name,
+    payload: {
+      months: term_months,
+      split_pct: rev_split_label_pct,
+      signing_bonus,
+    },
+  })
+
   return Response.json(contract, { status: 201 })
 }
