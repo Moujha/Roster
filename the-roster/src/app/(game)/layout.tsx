@@ -20,8 +20,9 @@ function SideItem({ icon, label, href }: { icon: string; label: string; href: st
       borderLeft: active ? '4px solid var(--lime)' : '4px solid transparent',
       color: active ? 'var(--ink-hi)' : 'var(--ink-mid)',
       textDecoration: 'none',
-      fontSize: 12, letterSpacing: '1px',
-      fontFamily: 'var(--font-mono, Silkscreen)',
+      fontSize: 11, letterSpacing: '0.5px',
+      fontFamily: 'Inter, sans-serif',
+      fontWeight: 600,
       textTransform: 'uppercase',
       transition: 'background 0.1s',
     }}>
@@ -61,7 +62,7 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
           <div style={{
             width: 36, height: 36, background: 'var(--lime)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Silkscreen, monospace', color: '#100719', fontSize: 14, fontWeight: 700,
+            fontFamily: 'Inter, sans-serif', color: '#100719', fontSize: 12, fontWeight: 800,
           }}>YOU</div>
           <div style={{ minWidth: 0 }}>
             <div className="tag" style={{ color: 'var(--ink-hi)', fontSize: 10 }}>@YOU</div>
