@@ -102,9 +102,9 @@ export default function ArtistProfileClient({
   }
 
   return (
-    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: "'Pixelify Sans', monospace", maxWidth: 760, position: 'relative' }}>
+    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 760, position: 'relative' }}>
       {/* Back */}
-      <Link href="/search" style={{ fontFamily: 'Silkscreen, monospace', fontSize: 8, color: 'var(--ink-low)', textDecoration: 'none', marginBottom: 16, display: 'inline-block' }}>
+      <Link href="/search" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: 10, color: 'var(--ink-low)', textDecoration: 'none', marginBottom: 16, display: 'inline-block' }}>
         BACK TO SEARCH
       </Link>
 
@@ -112,7 +112,7 @@ export default function ArtistProfileClient({
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 24 }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <span className="tag" style={{ color: tierColor, border: `1px solid ${tierColor}`, padding: '2px 6px', fontSize: 9 }}>
+            <span className="tag" style={{ color: tierColor, border: `1px solid ${tierColor}`, padding: '2px 7px', fontSize: 9, background: `${tierColor}18` }}>
               {artist.tier.toUpperCase()}
             </span>
             {artist.country && <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{artist.country}</span>}
@@ -172,7 +172,7 @@ export default function ArtistProfileClient({
           onClick={() => setShowModal(true)}
           disabled={!canSign}
           style={{
-            fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '10px 20px',
+            fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 20px',
             border: `2px solid ${canSign ? 'var(--lime)' : 'var(--line)'}`,
             color: canSign ? 'var(--lime)' : 'var(--ink-low)',
             background: canSign ? 'rgba(200,255,58,0.08)' : 'transparent',
@@ -186,7 +186,7 @@ export default function ArtistProfileClient({
           disabled
           title="Phase 4 feature"
           style={{
-            fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '10px 16px',
+            fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 16px',
             border: '1px solid var(--line)', color: 'var(--ink-low)', background: 'transparent',
             cursor: 'not-allowed', letterSpacing: 1, opacity: 0.5,
           }}
@@ -239,8 +239,8 @@ export default function ArtistProfileClient({
                 style={{ width: '100%', accentColor: 'var(--cyan)' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>10% (artist-friendly)</span>
-                <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>50% (label-heavy)</span>
+                <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>10% (artist-friendly)</span>
+                <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>50% (label-heavy)</span>
               </div>
             </div>
 
@@ -250,7 +250,7 @@ export default function ArtistProfileClient({
               <div style={{ display: 'flex', gap: 8 }}>
                 {([3, 6, 12] as const).map(t => (
                   <button key={t} onClick={() => setTerm(t)} style={{
-                    flex: 1, fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '8px',
+                    flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '8px',
                     border: `2px solid ${term === t ? 'var(--lime)' : 'var(--line)'}`,
                     color: term === t ? 'var(--lime)' : 'var(--ink-mid)',
                     background: term === t ? 'rgba(200,255,58,0.08)' : 'transparent', cursor: 'pointer',
@@ -269,7 +269,7 @@ export default function ArtistProfileClient({
                 { label: `EST. TOTAL (${term} MO)`, value: fmtUSD(estTotal), color: 'var(--violet)' },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>{label}</span>
+                  <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{label}</span>
                   <span className="tag" style={{ color, fontSize: 10 }}>{value}</span>
                 </div>
               ))}
@@ -279,11 +279,11 @@ export default function ArtistProfileClient({
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowModal(false)} style={{
-                flex: 1, fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '10px',
+                flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
                 border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent', cursor: 'pointer',
               }}>CANCEL</button>
               <button onClick={confirmSign} disabled={submitting || treasuryAfter < 0} style={{
-                flex: 2, fontFamily: 'Silkscreen, monospace', fontSize: 9, padding: '10px',
+                flex: 2, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
                 border: '2px solid var(--lime)', color: 'var(--lime)',
                 background: 'rgba(200,255,58,0.1)', cursor: submitting ? 'not-allowed' : 'pointer',
                 opacity: submitting || treasuryAfter < 0 ? 0.5 : 1,
