@@ -30,7 +30,7 @@ export default async function HistoryPage() {
   const history = (data ?? []) as LabelHistory[]
 
   return (
-    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: "'Pixelify Sans', monospace", maxWidth: 960 }}>
+    <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 960 }}>
       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>LABEL HISTORY</div>
       <div className="display" style={{ fontSize: 32, color: 'var(--ink-hi)', marginBottom: 24 }}>ALL CONTRACTS</div>
 
@@ -43,7 +43,7 @@ export default async function HistoryPage() {
             gap: 10, padding: '8px 16px', borderBottom: '2px solid var(--line)',
           }}>
             {['ARTIST', 'TIER', 'COMPLETED', 'ROYALTIES', 'SIGNING COST', 'NET P&L', 'REASON'].map(h => (
-              <span key={h} className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>{h}</span>
+              <span key={h} className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{h}</span>
             ))}
           </div>
           {history.map(h => {
@@ -54,10 +54,10 @@ export default async function HistoryPage() {
                 gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--line-soft)', alignItems: 'center',
               }}>
                 <span style={{ color: 'var(--ink-hi)', fontSize: 13 }}>{h.artist_name}</span>
-                <span className="tag" style={{ color: tc, border: `1px solid ${tc}`, padding: '1px 4px', fontSize: 8 }}>
+                <span className="tag" style={{ color: tc, border: `1px solid ${tc}`, padding: '1px 5px', fontSize: 9, background: `${tc}18` }}>
                   {h.artist_tier.toUpperCase()}
                 </span>
-                <span className="tag" style={{ color: 'var(--ink-mid)', fontSize: 8 }}>
+                <span className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9 }}>
                   {fmtDate(h.completed_at)}
                 </span>
                 <span className="tag" style={{ color: 'var(--lime)', fontSize: 10 }}>{fmtUSD(h.total_royalties)}</span>
@@ -65,7 +65,7 @@ export default async function HistoryPage() {
                 <span className="tag" style={{ color: h.net_pnl >= 0 ? 'var(--lime)' : 'var(--rose)', fontSize: 10 }}>
                   {h.net_pnl >= 0 ? '+' : ''}{fmtUSD(h.net_pnl)}
                 </span>
-                <span className="tag" style={{ color: h.reason === 'dropped' ? 'var(--rose)' : 'var(--ink-mid)', fontSize: 8 }}>
+                <span className="tag" style={{ color: h.reason === 'dropped' ? 'var(--rose)' : 'var(--ink-mid)', fontSize: 9 }}>
                   {h.reason.toUpperCase()}
                 </span>
               </div>
