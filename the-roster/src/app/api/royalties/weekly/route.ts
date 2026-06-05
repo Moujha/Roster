@@ -40,24 +40,26 @@ export async function POST(request: Request) {
 
   // ── Pass 1: compute and pay royalties ────────────────────────────────────────
   for (const c of contracts) {
-    const { data: statsRow } = await supabase
+    const { data: statsRow, error: statsErr } = await supabase
       .from('artist_stats_daily')
       .select('monthly_listeners')
       .eq('artist_id', c.artist_id)
       .eq('date', statsDate)
       .maybeSingle()
 
-    if (!statsRow?.monthly_listeners) continue
+    if (statsErr || !statsRow?.monthly_listeners) continue
 
     listenersMap.set(c.artist_id, statsRow.monthly_listeners)
 
-    const { data: streamRows } = await supabase
+    const { data: streamRows, error: streamsErr } = await supabase
       .from('artist_stats_daily')
       .select('daily_streams_top10')
       .eq('artist_id', c.artist_id)
       .gte('date', statsWeekStart)
       .lte('date', statsDate)
       .not('daily_streams_top10', 'is', null)
+
+    if (streamsErr) continue
 
     const actualWeeklyStreams = streamRows?.length
       ? streamRows.reduce((sum, r) => sum + (r.daily_streams_top10 ?? 0), 0)
