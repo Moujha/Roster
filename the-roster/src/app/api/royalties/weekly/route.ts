@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { computeWeeklyRoyalties } from '@/lib/royalty'
 
-export async function POST(request: Request) {
+async function handler(request: Request) {
   if (!process.env.CRON_SECRET) {
     return Response.json({ error: 'Server misconfigured' }, { status: 500 })
   }
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
   const { data: contracts } = await supabase
     .from('contracts')
-    .select('id, label_id, artist_id, rev_split_label_pct, end_date, signing_bonus, dev_spend_total, baseline_listeners')
+    .select('id, label_id, artist_id, rev_split_label_pct, end_date, signing_bonus, dev_spend_total, baseline_listeners, royalties_paid_through')
     .eq('status', 'active')
 
   if (!contracts?.length) return Response.json({ processed: 0, expired: 0, date: today })
@@ -48,6 +48,8 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (statsErr || !statsRow?.monthly_listeners) continue
+
+    if (c.royalties_paid_through && c.royalties_paid_through >= statsDate) continue
 
     listenersMap.set(c.artist_id, statsRow.monthly_listeners)
 
@@ -80,7 +82,7 @@ export async function POST(request: Request) {
 
     const [{ error: contractWriteErr }, { error: labelWriteErr }] = await Promise.all([
       supabase.from('contracts')
-        .update({ royalties_earned: (contract?.royalties_earned ?? 0) + royalties })
+        .update({ royalties_earned: (contract?.royalties_earned ?? 0) + royalties, royalties_paid_through: statsDate })
         .eq('id', c.id),
       supabase.from('labels')
         .update({ treasury: (label?.treasury ?? 0) + royalties })
@@ -106,28 +108,31 @@ export async function POST(request: Request) {
 
     const totalRoyalties = contract?.royalties_earned ?? 0
 
-    const [{ error: historyErr }, { error: expireErr }] = await Promise.all([
-      supabase.from('label_history').insert({
-        label_id: c.label_id,
-        contract_id: c.id,
-        artist_name: artist?.name ?? 'Unknown',
-        artist_tier: artist?.tier ?? 'underground',
-        listeners_at_signing: c.baseline_listeners,
-        listeners_at_end: listenersMap.get(c.artist_id) ?? null,
-        signing_bonus: c.signing_bonus,
-        total_royalties: totalRoyalties,
-        total_dev_spend: c.dev_spend_total,
-        net_pnl: totalRoyalties - c.signing_bonus - c.dev_spend_total,
-        reason: 'natural',
-        completed_at: today,
-      }),
-      supabase.from('contracts').update({ status: 'expired' }).eq('id', c.id),
-    ])
+    const { error: expireErr } = await supabase
+      .from('contracts').update({ status: 'expired' }).eq('id', c.id)
 
-    if (historyErr || expireErr) continue
+    if (expireErr) continue
+
+    await supabase.from('label_history').insert({
+      label_id: c.label_id,
+      contract_id: c.id,
+      artist_name: artist?.name ?? 'Unknown',
+      artist_tier: artist?.tier ?? 'underground',
+      listeners_at_signing: c.baseline_listeners,
+      listeners_at_end: listenersMap.get(c.artist_id) ?? null,
+      signing_bonus: c.signing_bonus,
+      total_royalties: totalRoyalties,
+      total_dev_spend: c.dev_spend_total,
+      net_pnl: totalRoyalties - c.signing_bonus - c.dev_spend_total,
+      reason: 'natural',
+      completed_at: today,
+    })
 
     expired++
   }
 
   return Response.json({ processed, expired, date: today })
 }
+
+export const GET = handler
+export const POST = handler
