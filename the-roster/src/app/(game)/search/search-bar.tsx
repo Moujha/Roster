@@ -183,9 +183,11 @@ export default function SearchBar({
                   }}
                 >
                   {r.name}
-                  <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginLeft: 8 }}>
-                    {fmtFollowers(r.followers)}
-                  </span>
+                  {r.followers > 0 && (
+                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginLeft: 8 }}>
+                      {fmtFollowers(r.followers)}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

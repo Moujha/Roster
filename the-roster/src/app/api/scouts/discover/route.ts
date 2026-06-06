@@ -26,11 +26,11 @@ export async function POST(request: Request) {
 
   const data = await res.json()
   const artists = (data.artists?.items ?? []).map((a: {
-    id: string; name: string; followers: { total: number }
+    id: string; name: string; followers?: { total: number }
   }) => ({
     spotify_id: a.id,
     name: a.name,
-    followers: a.followers.total,
+    followers: a.followers?.total ?? 0,
   }))
 
   return Response.json({ artists })
