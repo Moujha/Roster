@@ -13,6 +13,8 @@ export function describeEvent(e: LabelEvent): string {
     }
     case 'tier_up':
       return `${e.artist_name} reached ${p.new_tier} tier`
+    case 'scout_completed':
+      return `Scout complete — ${e.artist_name}`
     default:
       return e.artist_name
   }

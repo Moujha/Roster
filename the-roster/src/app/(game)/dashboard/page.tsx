@@ -48,6 +48,7 @@ const EVENT_COLORS: Record<string, string> = {
   artist_signed: 'var(--cyan)',
   contract_expired: 'var(--rose)',
   tier_up: 'var(--amber)',
+  scout_completed: 'var(--amber)',
 }
 
 export default async function DashboardPage() {

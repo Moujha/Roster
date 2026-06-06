@@ -8,12 +8,12 @@ const TIER_COLORS: Record<string, string> = {
 }
 
 const EVENT_ICONS: Record<string, string> = {
-  royalty_paid: '$', artist_signed: '✍', contract_expired: '✗', tier_up: '↑',
+  royalty_paid: '$', artist_signed: '✍', contract_expired: '✗', tier_up: '↑', scout_completed: '◎',
 }
 
 const EVENT_COLORS: Record<string, string> = {
   royalty_paid: 'var(--lime)', artist_signed: 'var(--cyan)',
-  contract_expired: 'var(--rose)', tier_up: 'var(--amber)',
+  contract_expired: 'var(--rose)', tier_up: 'var(--amber)', scout_completed: 'var(--amber)',
 }
 
 function fmtUSD(n: number) {
@@ -96,6 +96,14 @@ function EventRow({ event }: { event: LabelEvent }) {
               border: `1px solid ${TIER_COLORS[p.new_tier as string] ?? 'var(--line)'}`,
               padding: '2px 6px', fontSize: 9,
             }}>{(p.new_tier as string).toUpperCase()}</span>
+          </>
+        )}
+        {event.event_type === 'scout_completed' && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--ink-hi)', fontWeight: 600 }}>Scout complete — {event.artist_name}</div>
+            <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginTop: 3 }}>
+              Scout · {p.weeks_taken as number} weeks
+            </div>
           </>
         )}
       </div>
