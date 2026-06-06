@@ -89,7 +89,7 @@ export async function DELETE(
     event_type: 'contract_expired',
     artist_name: artist?.name ?? '',
     payload: {
-      net_pnl: netPnl,
+      net_pnl: netPnl - penalty,
       total_royalties: contract.royalties_earned,
       signing_bonus: contract.signing_bonus,
       reason: 'dropped',
