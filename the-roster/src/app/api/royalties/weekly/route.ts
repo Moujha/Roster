@@ -176,6 +176,42 @@ async function handler(request: Request) {
     })
   }
 
+  // ── Pass 4: complete overdue scouts ─────────────────────────────────────────
+  const { data: overdueScouts } = await supabase
+    .from('scouts')
+    .select('id, label_id, artist_id, started_at, completes_at')
+    .lte('completes_at', statsDate)
+    .is('completed_at', null)
+
+  const scoutArtistIds = (overdueScouts ?? [])
+    .map(s => s.artist_id)
+    .filter(id => !artistMap.has(id))
+
+  if (scoutArtistIds.length) {
+    const { data: scoutArtists } = await supabase
+      .from('artists').select('id, name').in('id', scoutArtistIds)
+    for (const a of scoutArtists ?? []) artistMap.set(a.id, a as any)
+  }
+
+  for (const s of overdueScouts ?? []) {
+    const { error } = await supabase
+      .from('scouts').update({ completed_at: statsDate }).eq('id', s.id)
+    if (error) continue
+
+    const artistName = artistMap.get(s.artist_id)?.name ?? 'Unknown'
+    const weeksStarted = Math.round(
+      (new Date(s.completes_at + 'T00:00:00Z').getTime() -
+       new Date(s.started_at + 'T00:00:00Z').getTime()) / (7 * 86400_000),
+    )
+
+    await supabase.from('label_events').insert({
+      label_id: s.label_id,
+      event_type: 'scout_completed',
+      artist_name: artistName,
+      payload: { weeks_taken: weeksStarted },
+    })
+  }
+
   return Response.json({ processed, expired, date: today })
 }
 
