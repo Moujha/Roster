@@ -1,23 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { scoutDurationWeeks } from '@/lib/scout-helpers'
+import { getSpotifyToken } from '@/lib/spotify'
 import type { Tier } from '@/lib/types'
-
-async function getSpotifyToken(): Promise<string> {
-  const creds = Buffer.from(
-    `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`,
-  ).toString('base64')
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${creds}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-  })
-  if (!res.ok) throw new Error(`Spotify auth error: ${res.status}`)
-  const data = await res.json()
-  return data.access_token as string
-}
 
 function popularityToTier(popularity: number): Tier {
   if (popularity <= 29) return 'underground'
@@ -35,6 +19,15 @@ export async function POST(request: Request) {
   const { spotify_id } = body
   if (!spotify_id) return Response.json({ error: 'spotify_id required' }, { status: 400 })
 
+  // Check 8-slot limit early — before any DB writes
+  const { count: activeCount } = await supabase
+    .from('scouts')
+    .select('*', { count: 'exact', head: true })
+    .eq('label_id', user.id)
+    .is('completed_at', null)
+  if ((activeCount ?? 0) >= 8)
+    return Response.json({ error: 'Maximum 8 active scouts' }, { status: 409 })
+
   // Resolve or create artist
   const { data: existingArtist } = await supabase
     .from('artists')
@@ -49,6 +42,18 @@ export async function POST(request: Request) {
   let artistGenre: string | null
 
   if (existingArtist) {
+    if (existingArtist.tier === 'major')
+      return Response.json({ error: 'Cannot scout major artists' }, { status: 400 })
+    // Check duplicate for existing artists (new artists can't have a duplicate)
+    const { data: existingScout } = await supabase
+      .from('scouts')
+      .select('id')
+      .eq('label_id', user.id)
+      .eq('artist_id', existingArtist.id)
+      .maybeSingle()
+    if (existingScout)
+      return Response.json({ error: 'Already scouting this artist' }, { status: 409 })
+
     artistId = existingArtist.id
     artistTier = existingArtist.tier as Tier
     artistCountry = existingArtist.country
@@ -90,25 +95,6 @@ export async function POST(request: Request) {
     artistGenre = genre
     isDiscovery = true
   }
-
-  // Check 8-slot limit
-  const { count: activeCount } = await supabase
-    .from('scouts')
-    .select('*', { count: 'exact', head: true })
-    .eq('label_id', user.id)
-    .is('completed_at', null)
-  if ((activeCount ?? 0) >= 8)
-    return Response.json({ error: 'Maximum 8 active scouts' }, { status: 409 })
-
-  // Check duplicate
-  const { data: existingScout } = await supabase
-    .from('scouts')
-    .select('id')
-    .eq('label_id', user.id)
-    .eq('artist_id', artistId)
-    .maybeSingle()
-  if (existingScout)
-    return Response.json({ error: 'Already scouting this artist' }, { status: 409 })
 
   // Compute affinity
   const { data: activeContracts } = await supabase
