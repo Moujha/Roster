@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import type { Artist, ArtistStats, Label } from '@/lib/types'
+import type { Artist, ArtistStats, Label, Scout } from '@/lib/types'
 
 const TIER_COLORS: Record<string, string> = {
   underground: 'var(--violet)', emerging: 'var(--lime)',
@@ -56,8 +56,15 @@ function SparkBars({ data }: { data: { date: string; daily_streams_top10: number
   )
 }
 
+type ScoutReport = {
+  pattern: 'organic' | 'spike' | 'mixed'
+  bonusEstimate: number
+  momentum: 'stable' | 'moderate' | 'volatile'
+} | null
+
 export default function ArtistProfileClient({
   artist, stats, spark, signedByCount, undergroundSignal, label, rosterCount,
+  scout, activeScoutCount, scoutReport,
 }: {
   artist: Artist
   stats: ArtistStats | null
@@ -66,6 +73,9 @@ export default function ArtistProfileClient({
   undergroundSignal: boolean
   label: Label
   rosterCount: number
+  scout: Scout | null
+  activeScoutCount: number
+  scoutReport: ScoutReport
 }) {
   const router = useRouter()
   const tierColor = TIER_COLORS[artist.tier] ?? 'var(--ink-mid)'
@@ -78,6 +88,8 @@ export default function ArtistProfileClient({
   const [term, setTerm] = useState<3 | 6 | 12>(6)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [scouting, setScouting] = useState(false)
+  const [scoutError, setScoutError] = useState('')
 
   const ml = stats?.monthly_listeners ?? 0
   const estWeekly = ml * 0.035 * (revSplit / 100)
@@ -86,6 +98,27 @@ export default function ArtistProfileClient({
   const estTotal = estWeekly * (term * 4.33)
 
   const canSign = artist.tier !== 'major' && rosterCount < 5 && label.treasury >= bonus
+
+  const scoutWeeksLeft = scout && !scout.completed_at
+    ? Math.max(0, Math.ceil(
+        (new Date(scout.completes_at + 'T00:00:00Z').getTime() - Date.now()) / (7 * 86400_000),
+      ))
+    : 0
+
+  async function handleScout() {
+    setScouting(true); setScoutError('')
+    const res = await fetch('/api/scouts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artist_id: artist.id }),
+    })
+    setScouting(false)
+    if (!res.ok) {
+      setScoutError((await res.json()).error ?? 'Scout failed')
+      return
+    }
+    router.refresh()
+  }
 
   async function confirmSign() {
     setSubmitting(true); setSubmitError('')
@@ -193,6 +226,65 @@ export default function ArtistProfileClient({
         >
           + WATCHLIST
         </button>
+      </div>
+
+      {/* SCOUT section */}
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line-soft)' }}>
+        <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 10 }}>SCOUT</div>
+        {!scout ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={handleScout}
+              disabled={scouting || activeScoutCount >= 8}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 20px',
+                border: `2px solid ${activeScoutCount >= 8 ? 'var(--line)' : 'var(--amber)'}`,
+                color: activeScoutCount >= 8 ? 'var(--ink-low)' : 'var(--amber)',
+                background: activeScoutCount >= 8 ? 'transparent' : 'rgba(255,176,32,0.08)',
+                cursor: activeScoutCount >= 8 || scouting ? 'not-allowed' : 'pointer',
+                letterSpacing: 1,
+              }}
+            >
+              {scouting ? 'STARTING...' : 'SCOUT THIS ARTIST'}
+            </button>
+            {activeScoutCount >= 8 && (
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>0 scout slots remaining</span>
+            )}
+            {scoutError && <span className="tag" style={{ color: 'var(--rose)', fontSize: 9 }}>{scoutError}</span>}
+          </div>
+        ) : !scout.completed_at ? (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '8px 14px', border: '1px solid var(--amber)', background: 'rgba(255,176,32,0.08)',
+          }}>
+            <span className="tag" style={{ color: 'var(--amber)', fontSize: 10 }}>
+              SCOUTING · {scoutWeeksLeft} WEEK{scoutWeeksLeft !== 1 ? 'S' : ''} REMAINING
+            </span>
+          </div>
+        ) : scoutReport ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>STREAM PATTERN</span>
+              <span className="tag" style={{
+                fontSize: 10,
+                color: scoutReport.pattern === 'organic' ? 'var(--lime)' : scoutReport.pattern === 'spike' ? 'var(--rose)' : 'var(--amber)',
+              }}>{scoutReport.pattern.toUpperCase()}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>SIGNING BONUS EST.</span>
+              <span className="tag" style={{ color: 'var(--lime)', fontSize: 10 }}>~{fmtUSD(scoutReport.bonusEstimate)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>MOMENTUM</span>
+              <span className="tag" style={{
+                fontSize: 10,
+                color: scoutReport.momentum === 'stable' ? 'var(--lime)' : scoutReport.momentum === 'volatile' ? 'var(--rose)' : 'var(--amber)',
+              }}>{scoutReport.momentum.toUpperCase()}</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ color: 'var(--ink-mid)', fontSize: 12 }}>Scout complete — no stats available</div>
+        )}
       </div>
 
       {/* Signing modal */}
