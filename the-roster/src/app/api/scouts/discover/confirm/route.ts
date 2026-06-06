@@ -14,6 +14,7 @@ async function getSpotifyToken(): Promise<string> {
     },
     body: 'grant_type=client_credentials',
   })
+  if (!res.ok) throw new Error(`Spotify auth error: ${res.status}`)
   const data = await res.json()
   return data.access_token as string
 }
@@ -153,6 +154,8 @@ export async function POST(request: Request) {
     .select('id, spotify_id, name, tier, genre, country')
     .eq('id', artistId)
     .single()
+
+  if (!artist) return Response.json({ error: 'Artist retrieval failed' }, { status: 500 })
 
   return Response.json({ scout, artist }, { status: 201 })
 }
