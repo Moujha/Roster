@@ -16,10 +16,8 @@ function fmtFollowers(n: number) {
 
 export default function SearchBar({
   initial = '',
-  activeScoutIds = [],
 }: {
   initial?: string
-  activeScoutIds?: string[]
 }) {
   const [q, setQ] = useState(initial)
   const router = useRouter()
@@ -34,7 +32,10 @@ export default function SearchBar({
 
   function submit() {
     const trimmed = q.trim()
-    if (trimmed.length >= 2) router.push(`/search?q=${encodeURIComponent(trimmed)}`)
+    if (trimmed.length >= 2) {
+      setSuccessMsg('')
+      router.push(`/search?q=${encodeURIComponent(trimmed)}`)
+    }
   }
 
   async function handleDiscover() {
@@ -47,6 +48,10 @@ export default function SearchBar({
     setDiscovering(false)
     if (!res.ok) { setDiscoverError((await res.json()).error ?? 'Search failed'); return }
     const data = await res.json()
+    if (!data.artists?.length) {
+      setDiscoverError('No artists found on Spotify')
+      return
+    }
     setSpotifyResults(data.artists)
   }
 

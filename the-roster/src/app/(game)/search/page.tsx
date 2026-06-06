@@ -217,7 +217,7 @@ export default async function SearchPage({
     <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 960 }}>
       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 8 }}>FIND ARTISTS</div>
       <div style={{ marginBottom: 24 }}>
-        <SearchBar initial={q ?? ''} activeScoutIds={[...activeScoutIds]} />
+        <SearchBar initial={q ?? ''} />
       </div>
 
       {q && (
