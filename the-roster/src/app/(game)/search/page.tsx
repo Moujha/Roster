@@ -8,9 +8,10 @@ const TIER_COLORS: Record<string, string> = {
   rising: 'var(--cyan)', established: 'var(--amber)',
 }
 
-function ArtistCard({ artist, metric }: {
+function ArtistCard({ artist, metric, isScouting = false }: {
   artist: Artist
   metric?: { label: string; value: string; color: string }
+  isScouting?: boolean
 }) {
   return (
     <Link href={`/artist/${artist.spotify_id}`} style={{
@@ -18,15 +19,20 @@ function ArtistCard({ artist, metric }: {
       padding: 14, textDecoration: 'none', color: 'inherit',
     }}>
       <div className="display" style={{ fontSize: 18, color: 'var(--ink-hi)', lineHeight: 1 }}>{artist.name}</div>
-      <div style={{ marginTop: 6 }}>
+      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
         <span className="tag" style={{
           color: TIER_COLORS[artist.tier] ?? 'var(--ink-mid)', fontSize: 9,
           border: `1px solid ${TIER_COLORS[artist.tier] ?? 'var(--line)'}`, padding: '1px 5px',
           background: `${TIER_COLORS[artist.tier] ?? 'transparent'}18`,
         }}>{artist.tier.toUpperCase()}</span>
         {artist.genre && (
-          <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginLeft: 6 }}>
+          <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>
             {artist.genre.toUpperCase().slice(0, 16)}
+          </span>
+        )}
+        {isScouting && (
+          <span className="tag" style={{ color: 'var(--amber)', border: '1px solid var(--amber)', padding: '1px 4px', fontSize: 9 }}>
+            SCOUTING
           </span>
         )}
       </div>
@@ -195,6 +201,10 @@ export default async function SearchPage({
   const { data: { user } } = await supabase.auth.getUser()
   const { q } = await searchParams
 
+  const scoutData = await supabase
+    .from('scouts').select('artist_id').eq('label_id', user!.id).is('completed_at', null)
+  const activeScoutIds = new Set((scoutData.data ?? []).map(s => s.artist_id))
+
   let searchResults: Artist[] = []
   if (q && q.length >= 2) {
     const { data } = await supabase.from('artists').select('*').ilike('name', `%${q}%`).neq('tier', 'major').limit(20)
@@ -207,7 +217,7 @@ export default async function SearchPage({
     <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 960 }}>
       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 8 }}>FIND ARTISTS</div>
       <div style={{ marginBottom: 24 }}>
-        <SearchBar initial={q ?? ''} />
+        <SearchBar initial={q ?? ''} activeScoutIds={[...activeScoutIds]} />
       </div>
 
       {q && (
@@ -216,7 +226,7 @@ export default async function SearchPage({
             {searchResults.length} RESULTS FOR &quot;{q.toUpperCase()}&quot;
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-            {searchResults.map(a => <ArtistCard key={a.id} artist={a} />)}
+            {searchResults.map(a => <ArtistCard key={a.id} artist={a} isScouting={activeScoutIds.has(a.id)} />)}
           </div>
           {searchResults.length === 0 && (
             <div style={{ color: 'var(--ink-mid)', fontSize: 13 }}>No artists found</div>
