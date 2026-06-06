@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import ArtistProfileClient from './client'
-import type { Artist, ArtistStats, Label } from '@/lib/types'
+import type { Artist, ArtistStats, Label, Scout, Tier } from '@/lib/types'
 import { classifyPattern, estimateBonus, momentumConfidence } from '@/lib/scout-helpers'
-import type { Scout, Tier } from '@/lib/types'
 
 export default async function ArtistProfilePage({
   params,
@@ -47,8 +46,8 @@ export default async function ArtistProfilePage({
   const scoutReport = scout?.completed_at && stats
     ? {
         pattern: classifyPattern(stats14),
-        bonusEstimate: estimateBonus(artist.tier as Tier, stats?.monthly_listeners ?? 0),
-        momentum: momentumConfidence(stats?.listener_growth_28d ?? null),
+        bonusEstimate: estimateBonus(artist.tier as Tier, stats.monthly_listeners ?? 0),
+        momentum: momentumConfidence(stats.listener_growth_28d ?? null),
       }
     : null
 
