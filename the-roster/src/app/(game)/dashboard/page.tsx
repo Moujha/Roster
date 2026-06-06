@@ -1,15 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import type { Label, Contract, LabelEvent } from '@/lib/types'
+import type { Label, Contract, LabelEvent, Scout } from '@/lib/types'
 import { describeEvent, relativeTime } from '@/lib/activity-helpers'
 
 type ContractRow = Contract & { artists: { name: string; tier: string; spotify_id: string } }
+type ScoutRow = Scout & { artists: { name: string; tier: string } }
 
 async function getDashboardData() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const [labelRes, contractsRes, eventsRes] = await Promise.all([
+  const [labelRes, contractsRes, eventsRes, scoutsRes] = await Promise.all([
     supabase.from('labels').select('*').eq('id', user.id).single(),
     supabase.from('contracts')
       .select('*, artists(name, tier, spotify_id)')
@@ -20,11 +21,17 @@ async function getDashboardData() {
       .eq('label_id', user.id)
       .order('created_at', { ascending: false })
       .limit(8),
+    supabase.from('scouts')
+      .select('*, artists(name, tier)')
+      .eq('label_id', user.id)
+      .is('completed_at', null)
+      .order('completes_at', { ascending: true }),
   ])
   return {
     label: labelRes.data as Label,
     contracts: (contractsRes.data ?? []) as ContractRow[],
     events: (eventsRes.data ?? []) as LabelEvent[],
+    scouts: (scoutsRes.data ?? []) as ScoutRow[],
   }
 }
 
@@ -54,7 +61,7 @@ const EVENT_COLORS: Record<string, string> = {
 export default async function DashboardPage() {
   const data = await getDashboardData()
   if (!data) return null
-  const { label, contracts, events } = data
+  const { label, contracts, events, scouts } = data
   const active = contracts.filter(c => c.status === 'active')
   const expired = contracts.filter(c => c.status === 'expired')
 
@@ -194,31 +201,67 @@ export default async function DashboardPage() {
           })}
         </div>
 
-        {/* Right: Activity widget */}
-        <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
-          <div style={{ padding: '8px 14px', borderBottom: '2px solid var(--line)' }}>
-            <span className="tag" style={{ color: 'var(--lime)', fontSize: 10 }}>RECENT ACTIVITY</span>
-          </div>
-          {events.length === 0 ? (
-            <div style={{ padding: 20, color: 'var(--ink-mid)', fontSize: 12 }}>No activity yet</div>
-          ) : events.map(e => (
-            <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid var(--line-soft)' }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: EVENT_COLORS[e.event_type], flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: 'var(--ink-hi)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {describeEvent(e)}
+        {/* Right column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Activity widget */}
+          <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
+            <div style={{ padding: '8px 14px', borderBottom: '2px solid var(--line)' }}>
+              <span className="tag" style={{ color: 'var(--lime)', fontSize: 10 }}>RECENT ACTIVITY</span>
+            </div>
+            {events.length === 0 ? (
+              <div style={{ padding: 20, color: 'var(--ink-mid)', fontSize: 12 }}>No activity yet</div>
+            ) : events.map(e => (
+              <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid var(--line-soft)' }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: EVENT_COLORS[e.event_type], flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-hi)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {describeEvent(e)}
+                  </div>
+                </div>
+                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, flexShrink: 0 }}>
+                  {relativeTime(e.created_at)}
                 </div>
               </div>
-              <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, flexShrink: 0 }}>
-                {relativeTime(e.created_at)}
-              </div>
+            ))}
+            <div style={{ padding: '8px 14px' }}>
+              <Link href="/history" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--ink-low)', textDecoration: 'none', letterSpacing: 1 }}>
+                VIEW ALL →
+              </Link>
             </div>
-          ))}
-          <div style={{ padding: '8px 14px' }}>
-            <Link href="/history" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--ink-low)', textDecoration: 'none', letterSpacing: 1 }}>
-              VIEW ALL →
-            </Link>
           </div>
+
+          {/* Scouts widget */}
+          <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
+            <div style={{ padding: '8px 14px', borderBottom: '2px solid var(--line)' }}>
+              <span className="tag" style={{ color: 'var(--amber)', fontSize: 10 }}>SCOUTING</span>
+            </div>
+            {scouts.length === 0 ? (
+              <div style={{ padding: '12px 14px', color: 'var(--ink-mid)', fontSize: 12 }}>No active scouts</div>
+            ) : scouts.map(s => {
+              const wl = weeksLeft(s.completes_at)
+              return (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--line-soft)' }}>
+                  <div>
+                    <span style={{ fontSize: 12, color: 'var(--ink-hi)' }}>{s.artists.name}</span>
+                    <span className="tag" style={{
+                      marginLeft: 6, fontSize: 8,
+                      color: TIER_COLORS[s.artists.tier] ?? 'var(--ink-mid)',
+                      border: `1px solid ${TIER_COLORS[s.artists.tier] ?? 'var(--line)'}`,
+                      padding: '1px 4px',
+                    }}>{s.artists.tier.toUpperCase()}</span>
+                  </div>
+                  <span className="tag" style={{ color: 'var(--amber)', fontSize: 9 }}>{wl}w left</span>
+                </div>
+              )
+            })}
+            <div style={{ padding: '8px 14px' }}>
+              <Link href="/search" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--ink-low)', textDecoration: 'none', letterSpacing: 1 }}>
+                SCOUT AN ARTIST →
+              </Link>
+            </div>
+          </div>
+
         </div>
 
       </div>
