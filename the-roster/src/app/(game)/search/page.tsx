@@ -247,7 +247,7 @@ export default async function SearchPage({
                     label: onRamps.breaking!.metricLabel,
                     value: onRamps.breaking!.format(onRamps.breaking!.metrics[a.id] ?? 0),
                     color: onRamps.breaking!.metricColor,
-                  }} />
+                  }} isScouting={activeScoutIds.has(a.id)} />
                 ))}
               </div>
             </section>
@@ -261,7 +261,7 @@ export default async function SearchPage({
                     label: onRamps.genre!.metricLabel,
                     value: onRamps.genre!.format(onRamps.genre!.metrics[a.id] ?? 0),
                     color: onRamps.genre!.metricColor,
-                  }} />
+                  }} isScouting={activeScoutIds.has(a.id)} />
                 ))}
               </div>
             </section>
@@ -275,7 +275,7 @@ export default async function SearchPage({
                     label: onRamps.regional!.metricLabel,
                     value: onRamps.regional!.format(onRamps.regional!.metrics[a.id] ?? 0),
                     color: onRamps.regional!.metricColor,
-                  }} />
+                  }} isScouting={activeScoutIds.has(a.id)} />
                 ))}
               </div>
             </section>
