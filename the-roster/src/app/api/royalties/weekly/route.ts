@@ -189,8 +189,8 @@ async function handler(request: Request) {
 
   if (scoutArtistIds.length) {
     const { data: scoutArtists } = await supabase
-      .from('artists').select('id, name').in('id', scoutArtistIds)
-    for (const a of scoutArtists ?? []) artistMap.set(a.id, a as any)
+      .from('artists').select('id, name, tier, tier_updated_at').in('id', scoutArtistIds)
+    for (const a of scoutArtists ?? []) artistMap.set(a.id, a)
   }
 
   for (const s of overdueScouts ?? []) {
@@ -199,7 +199,7 @@ async function handler(request: Request) {
     if (error) continue
 
     const artistName = artistMap.get(s.artist_id)?.name ?? 'Unknown'
-    const weeksStarted = Math.round(
+    const durationWeeks = Math.round(
       (new Date(s.completes_at + 'T00:00:00Z').getTime() -
        new Date(s.started_at + 'T00:00:00Z').getTime()) / (7 * 86400_000),
     )
@@ -208,7 +208,7 @@ async function handler(request: Request) {
       label_id: s.label_id,
       event_type: 'scout_completed',
       artist_name: artistName,
-      payload: { weeks_taken: weeksStarted },
+      payload: { weeks_taken: durationWeeks },
     })
   }
 
