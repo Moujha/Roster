@@ -69,7 +69,7 @@ export interface LabelHistory {
   completed_at: string
 }
 
-export type EventType = 'royalty_paid' | 'artist_signed' | 'contract_expired' | 'tier_up'
+export type EventType = 'royalty_paid' | 'artist_signed' | 'contract_expired' | 'tier_up' | 'scout_completed'
 
 export interface LabelEvent {
   id: string
@@ -78,4 +78,14 @@ export interface LabelEvent {
   artist_name: string
   payload: Record<string, unknown>
   created_at: string
+}
+
+export interface Scout {
+  id: string
+  label_id: string
+  artist_id: string
+  started_at: string
+  completes_at: string
+  completed_at: string | null
+  is_discovery: boolean
 }
