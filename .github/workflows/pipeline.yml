@@ -32,8 +32,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install Playwright system dependencies
+        run: python -m playwright install-deps chromium
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}
+
       - name: Install Playwright Chromium
-        run: python -m playwright install chromium --with-deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: python -m playwright install chromium
 
       - name: Scrape raw Spotify data (playcounts + monthly listeners)
         run: python -m scraper.main
@@ -41,12 +52,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SP_DC: ${{ secrets.SP_DC }}
-          SPOTIFY_ACCESS_TOKEN: ${{ secrets.SPOTIFY_ACCESS_TOKEN }}
 
-      - name: Score + price artists
-        run: python run.py
+      - name: Compute metrics + expire contracts
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.run_date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.run_date }}"
+          fi
+          python run.py $DATE_ARG
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}

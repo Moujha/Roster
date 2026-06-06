@@ -3,12 +3,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
-  { icon: '◼', label: 'LABEL HQ',    href: '/dashboard' },
-  { icon: '◆', label: 'ROSTER',      href: '/market' },
-  { icon: '✦', label: 'SCOUT',       href: '/scout' },
-  { icon: '$', label: 'A&R LAB',     href: '/anr' },
-  { icon: '▲', label: 'MINI LEAGUE', href: '/league' },
-  { icon: '◉', label: 'WEEKLY OBJ.', href: '/portfolio' },
+  { icon: '◼', label: 'LABEL HQ',  href: '/dashboard' },
+  { icon: '◆', label: 'SEARCH',    href: '/search' },
+  { icon: '$', label: 'CONTRACTS', href: '/contracts' },
+  { icon: '◉', label: 'HISTORY',   href: '/history' },
 ]
 
 function SideItem({ icon, label, href }: { icon: string; label: string; href: string }) {
@@ -22,8 +20,9 @@ function SideItem({ icon, label, href }: { icon: string; label: string; href: st
       borderLeft: active ? '4px solid var(--lime)' : '4px solid transparent',
       color: active ? 'var(--ink-hi)' : 'var(--ink-mid)',
       textDecoration: 'none',
-      fontSize: 12, letterSpacing: '1px',
-      fontFamily: 'var(--font-mono, Silkscreen)',
+      fontSize: 11, letterSpacing: '0.5px',
+      fontFamily: 'Inter, sans-serif',
+      fontWeight: 600,
       textTransform: 'uppercase',
       transition: 'background 0.1s',
     }}>
@@ -55,10 +54,7 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
 
         {/* Nav */}
         <nav style={{ padding: '8px 0', flex: 1 }}>
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, padding: '8px 16px' }}>OFFICE</div>
-          {NAV_ITEMS.slice(0, 4).map(item => <SideItem key={item.href} {...item}/>)}
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, padding: '12px 16px 8px' }}>COMPETE</div>
-          {NAV_ITEMS.slice(4).map(item => <SideItem key={item.href} {...item}/>)}
+          {NAV_ITEMS.map(item => <SideItem key={item.href} {...item}/>)}
         </nav>
 
         {/* User */}
@@ -66,7 +62,7 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
           <div style={{
             width: 36, height: 36, background: 'var(--lime)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Silkscreen, monospace', color: '#100719', fontSize: 14, fontWeight: 700,
+            fontFamily: 'Inter, sans-serif', color: '#100719', fontSize: 12, fontWeight: 800,
           }}>YOU</div>
           <div style={{ minWidth: 0 }}>
             <div className="tag" style={{ color: 'var(--ink-hi)', fontSize: 10 }}>@YOU</div>

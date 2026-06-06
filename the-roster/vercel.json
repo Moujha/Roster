@@ -1,0 +1,8 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "crons": [
+    { "path": "/api/royalties/weekly", "schedule": "0 8 * * 1" }
+  ]
+}
