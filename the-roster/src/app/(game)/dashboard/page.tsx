@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import type { Label, Contract, LabelEvent, Scout, DevAllocation, ReleaseAmplification } from '@/lib/types'
+import type { LeaderboardRow } from '../leaderboard/client'
 import { computeWeeklyRoyalties } from '@/lib/royalty'
 import { describeEvent, relativeTime } from '@/lib/activity-helpers'
 
@@ -84,8 +85,8 @@ async function getData() {
   const activeArtistIds = active.map(c => c.artist_id)
   const today = new Date().toISOString().slice(0, 10)
 
-  // ── Pass 2: dev state + discovery ────────────────────────────────────────────
-  const [allocsRes, releaseAmpsRes, activeStatsRes, discoveryRes] = await Promise.all([
+  // ── Pass 2: dev state + discovery + leaderboard ─────────────────────────────
+  const [allocsRes, releaseAmpsRes, activeStatsRes, discoveryRes, leaderboardRes] = await Promise.all([
     activeIds.length
       ? supabase.from('dev_allocations').select('*').in('contract_id', activeIds)
       : Promise.resolve({ data: [] as DevAllocation[] }),
@@ -102,6 +103,7 @@ async function getData() {
           .order('stream_velocity_7d', { ascending: false, nullsFirst: false })
           .limit(80)
       : Promise.resolve({ data: [] }),
+    supabase.rpc('get_leaderboard'),
   ])
 
   const allocMap = new Map<string, DevAllocation>(
@@ -145,12 +147,16 @@ async function getData() {
   const activeScouts = scouts.filter(s => !s.completed_at)
   const completedScouts = scouts.filter(s => s.completed_at)
 
+  const leaderboard = (leaderboardRes.data ?? []) as LeaderboardRow[]
+
   return {
     label, active, expired, events,
     activeScouts, completedScouts,
     allocMap, releaseMap, listenerMap,
     weeklyIncomeEst,
     breaking, genrePicks, regional,
+    leaderboard,
+    myLabelId: user.id,
   }
 }
 
@@ -197,6 +203,7 @@ export default async function DashboardPage() {
     allocMap, releaseMap, listenerMap,
     weeklyIncomeEst,
     breaking, genrePicks, regional,
+    leaderboard, myLabelId,
   } = data
 
   const rep = repTier(label.reputation)
@@ -420,6 +427,61 @@ export default async function DashboardPage() {
               <Link href="/history" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--ink-low)', textDecoration: 'none' }}>VIEW ALL →</Link>
             </div>
           </div>
+
+          {/* Leaderboard preview */}
+          {leaderboard.length > 0 && (() => {
+            const sorted = [...leaderboard].sort((a, b) => b.revenue_90d - a.revenue_90d)
+            const myRank = sorted.findIndex(r => r.label_id === myLabelId) + 1
+            const top5 = sorted.slice(0, 5)
+            const myRow = sorted.find(r => r.label_id === myLabelId)
+            const myInTop5 = myRank > 0 && myRank <= 5
+            const RANK_SYMS = ['①', '②', '③', '④', '⑤']
+            return (
+              <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
+                <div style={{ padding: '8px 14px', borderBottom: '2px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="tag" style={{ color: 'var(--amber)', fontSize: 10 }}>LEADERBOARD</span>
+                  <Link href="/leaderboard" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--ink-low)', textDecoration: 'none' }}>VIEW ALL →</Link>
+                </div>
+                {top5.map((row, idx) => {
+                  const isMe = row.label_id === myLabelId
+                  return (
+                    <div key={row.label_id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '7px 14px', borderBottom: '1px solid var(--line-soft)',
+                      background: isMe ? 'rgba(200,255,58,0.04)' : 'transparent',
+                      borderLeft: isMe ? '3px solid var(--lime)' : '3px solid transparent',
+                    }}>
+                      <span style={{ fontFamily: 'Silkscreen, monospace', fontSize: 12, color: idx < 3 ? ['var(--amber)', 'var(--ink-mid)', 'var(--violet)'][idx] : 'var(--ink-low)', width: 16, flexShrink: 0 }}>
+                        {RANK_SYMS[idx]}
+                      </span>
+                      <span style={{ flex: 1, fontSize: 11, color: isMe ? 'var(--lime)' : 'var(--ink-hi)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {row.label_name}
+                        {isMe && <span className="tag" style={{ color: 'var(--lime)', fontSize: 7, marginLeft: 5, border: '1px solid var(--lime)', padding: '0 3px' }}>YOU</span>}
+                      </span>
+                      <span className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9, flexShrink: 0 }}>{fmtUSD(row.revenue_90d)}</span>
+                    </div>
+                  )
+                })}
+                {!myInTop5 && myRow && (
+                  <>
+                    <div style={{ padding: '2px 14px', color: 'var(--ink-low)', fontSize: 10, textAlign: 'center' }}>···</div>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '7px 14px', borderBottom: '1px solid var(--line-soft)',
+                      background: 'rgba(200,255,58,0.04)', borderLeft: '3px solid var(--lime)',
+                    }}>
+                      <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, width: 16, flexShrink: 0 }}>#{myRank}</span>
+                      <span style={{ flex: 1, fontSize: 11, color: 'var(--lime)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {myRow.label_name}
+                        <span className="tag" style={{ color: 'var(--lime)', fontSize: 7, marginLeft: 5, border: '1px solid var(--lime)', padding: '0 3px' }}>YOU</span>
+                      </span>
+                      <span className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9, flexShrink: 0 }}>{fmtUSD(myRow.revenue_90d)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })()}
 
         </div>
       </div>
