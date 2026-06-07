@@ -65,25 +65,25 @@ async function getOnRamps(userId: string) {
   const { data: label } = await supabase
     .from('labels').select('genre_1, genre_2, country').eq('id', userId).single()
 
-  // ── Breaking ───────────────────────────────────────────────────────────────
-  // Primary: top 5 by stream_velocity_7d. Fallback: top 5 by monthly_listeners.
-  let breaking: OnRampSection | null = null
-  const { data: vStats } = await supabase.from('artist_stats_daily')
-    .select('artist_id, stream_velocity_7d').eq('date', statsDate)
-    .not('stream_velocity_7d', 'is', null).order('stream_velocity_7d', { ascending: false }).limit(30)
-  if (vStats?.length) {
+  // ── Trending ───────────────────────────────────────────────────────────────
+  // Primary: top 8 by momentum_score. Fallback: top 8 by monthly_listeners.
+  let trending: OnRampSection | null = null
+  const { data: mStats } = await supabase.from('artist_stats_daily')
+    .select('artist_id, momentum_score').eq('date', statsDate)
+    .not('momentum_score', 'is', null).order('momentum_score', { ascending: false }).limit(30)
+  if (mStats?.length) {
     const { data: artists } = await supabase.from('artists').select('*')
-      .in('id', vStats.map(s => s.artist_id)).neq('tier', 'major').limit(5)
+      .in('id', mStats.map(s => s.artist_id)).neq('tier', 'major').limit(8)
     if (artists?.length) {
-      breaking = {
+      trending = {
         artists: artists as Artist[],
-        metrics: Object.fromEntries(vStats.map(s => [s.artist_id, s.stream_velocity_7d])),
-        metricLabel: 'VELOCITY', metricColor: 'var(--lime)',
-        format: v => `+${v.toFixed(1)}%`,
+        metrics: Object.fromEntries(mStats.map(s => [s.artist_id, s.momentum_score])),
+        metricLabel: 'MOMENTUM', metricColor: 'var(--lime)',
+        format: v => v.toFixed(0),
       }
     }
   }
-  if (!breaking) {
+  if (!trending) {
     const { data: lStats } = await supabase.from('artist_stats_daily')
       .select('artist_id, monthly_listeners').eq('date', statsDate)
       .not('monthly_listeners', 'is', null).order('monthly_listeners', { ascending: false }).limit(50)
@@ -91,7 +91,7 @@ async function getOnRamps(userId: string) {
       const { data: artists } = await supabase.from('artists').select('*')
         .in('id', lStats.map(s => s.artist_id)).neq('tier', 'major').limit(8)
       if (artists?.length) {
-        breaking = {
+        trending = {
           artists: artists as Artist[],
           metrics: Object.fromEntries(lStats.map(s => [s.artist_id, s.monthly_listeners])),
           metricLabel: 'LISTENERS', metricColor: 'var(--lime)',
@@ -191,8 +191,7 @@ async function getOnRamps(userId: string) {
     }
   }
 
-  const hasVelocity = breaking?.metricLabel === 'VELOCITY'
-  return { label, breaking, genre, regional, hasVelocity }
+  return { label, trending, genre, regional }
 }
 
 export default async function SearchPage({
@@ -239,17 +238,17 @@ export default async function SearchPage({
 
       {!q && onRamps && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {onRamps.breaking && (
+          {onRamps.trending && (
             <section>
               <div className="tag" style={{ color: 'var(--lime)', fontSize: 10, marginBottom: 12 }}>
-                {onRamps.breaking.metricLabel === 'VELOCITY' ? 'BREAKING THIS WEEK' : 'TOP ARTISTS'}
+                {onRamps.trending.metricLabel === 'MOMENTUM' ? 'TRENDING ARTISTS' : 'TOP ARTISTS'}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                {onRamps.breaking.artists.map(a => (
+                {onRamps.trending.artists.map(a => (
                   <ArtistCard key={a.id} artist={a} metric={{
-                    label: onRamps.breaking!.metricLabel,
-                    value: onRamps.breaking!.format(onRamps.breaking!.metrics[a.id] ?? 0),
-                    color: onRamps.breaking!.metricColor,
+                    label: onRamps.trending!.metricLabel,
+                    value: onRamps.trending!.format(onRamps.trending!.metrics[a.id] ?? 0),
+                    color: onRamps.trending!.metricColor,
                   }} isScouting={activeScoutIds.has(a.id)} />
                 ))}
               </div>
@@ -283,7 +282,7 @@ export default async function SearchPage({
               </div>
             </section>
           )}
-          {!onRamps.breaking && !onRamps.genre && !onRamps.regional && (
+          {!onRamps.trending && !onRamps.genre && !onRamps.regional && (
             <div style={{ color: 'var(--ink-mid)', fontSize: 13 }}>
               No on-ramp data yet -- the pipeline runs daily at 07:00 UTC.
             </div>
