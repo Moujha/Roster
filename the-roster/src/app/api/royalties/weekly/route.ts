@@ -1,5 +1,10 @@
 import { createServiceClient } from '@/lib/supabase/service'
-import { computeEngagementMultiplier, computeWeeklyRoyalties } from '@/lib/royalty'
+import {
+  computeEngagementMultiplier, computeWeeklyRoyalties,
+  computeReleaseMultiplier, computeCombinedMultiplier,
+  DEV_BUDGET_PCT, DEV_COST_PCT, SOCIAL_FLOOR_PCTS,
+  type DevTier,
+} from '@/lib/royalty'
 
 async function handler(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -74,14 +79,71 @@ async function handler(request: Request) {
       ? streamRows.reduce((sum, r) => sum + (r.daily_streams_top10 ?? 0), 0)
       : null
 
-    const royalties = computeWeeklyRoyalties(
+    // ── Dev multipliers ──────────────────────────────────────────────────────
+    const { data: devAlloc } = await supabase
+      .from('dev_allocations')
+      .select('playlist_tier, social_push_tier')
+      .eq('contract_id', c.id)
+      .maybeSingle()
+
+    const playlistTier = (devAlloc?.playlist_tier ?? 'none') as DevTier
+    const socialTier   = (devAlloc?.social_push_tier ?? 'none') as DevTier
+
+    // Social push: clamp stream drop against prior-week floor
+    let adjustedStreams = actualWeeklyStreams
+    if (adjustedStreams !== null && socialTier !== 'none') {
+      const prevWeekStart = new Date(
+        new Date(statsWeekStart + 'T00:00:00Z').getTime() - 7 * 86400_000,
+      ).toISOString().slice(0, 10)
+      const { data: prevRows } = await supabase
+        .from('artist_stats_daily')
+        .select('daily_streams_top10')
+        .eq('artist_id', c.artist_id)
+        .gte('date', prevWeekStart)
+        .lt('date', statsWeekStart)
+        .not('daily_streams_top10', 'is', null)
+      if (prevRows?.length) {
+        const prevWeekStreams = prevRows.reduce((s, r) => s + (r.daily_streams_top10 ?? 0), 0)
+        const floor = prevWeekStreams * SOCIAL_FLOOR_PCTS[socialTier]
+        adjustedStreams = Math.max(adjustedStreams, floor)
+      }
+    }
+
+    const baseRoyalties = computeWeeklyRoyalties(
       statsRow.monthly_listeners,
       c.rev_split_label_pct,
-      actualWeeklyStreams,
+      adjustedStreams,
     )
 
+    // Active release amplification
+    const { data: releaseAmp } = await supabase
+      .from('release_amplifications')
+      .select('peak_multiplier, triggered_at')
+      .eq('contract_id', c.id)
+      .gte('expires_at', statsDate)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let releaseMultiplier = 1.0
+    if (releaseAmp) {
+      const daysSince = Math.floor(
+        (new Date(statsDate + 'T00:00:00Z').getTime() -
+         new Date(releaseAmp.triggered_at + 'T00:00:00Z').getTime()) / 86400_000,
+      )
+      releaseMultiplier = computeReleaseMultiplier(releaseAmp.peak_multiplier, daysSince)
+    }
+
+    const combined = computeCombinedMultiplier(playlistTier, releaseMultiplier)
+    const royalties = Math.round(baseRoyalties * combined * 100) / 100
+
+    // Dev spend (playlist + social, capped at 100% of dev budget)
+    const devBudget = baseRoyalties * DEV_BUDGET_PCT
+    const devCostRaw = (DEV_COST_PCT[playlistTier] + DEV_COST_PCT[socialTier]) * devBudget
+    const devCost = Math.round(Math.min(devCostRaw, devBudget) * 100) / 100
+
     const [{ data: contract, error: contractReadErr }, { data: label, error: labelReadErr }] = await Promise.all([
-      supabase.from('contracts').select('royalties_earned').eq('id', c.id).single(),
+      supabase.from('contracts').select('royalties_earned, dev_spend_total').eq('id', c.id).single(),
       supabase.from('labels').select('treasury').eq('id', c.label_id).single(),
     ])
 
@@ -89,17 +151,21 @@ async function handler(request: Request) {
 
     const [{ error: contractWriteErr }, { error: labelWriteErr }] = await Promise.all([
       supabase.from('contracts')
-        .update({ royalties_earned: (contract?.royalties_earned ?? 0) + royalties, royalties_paid_through: statsDate })
+        .update({
+          royalties_earned: (contract?.royalties_earned ?? 0) + royalties,
+          dev_spend_total: (contract?.dev_spend_total ?? 0) + devCost,
+          royalties_paid_through: statsDate,
+        })
         .eq('id', c.id),
       supabase.from('labels')
-        .update({ treasury: (label?.treasury ?? 0) + royalties })
+        .update({ treasury: (label?.treasury ?? 0) + royalties - devCost })
         .eq('id', c.label_id),
     ])
 
     if (contractWriteErr || labelWriteErr) continue
 
     processed++
-    const multiplier = computeEngagementMultiplier(statsRow.monthly_listeners, actualWeeklyStreams)
+    const multiplier = computeEngagementMultiplier(statsRow.monthly_listeners, adjustedStreams)
     await supabase.from('label_events').insert({
       label_id: c.label_id,
       event_type: 'royalty_paid',
@@ -107,7 +173,9 @@ async function handler(request: Request) {
       payload: {
         amount: royalties,
         multiplier,
-        has_stream_data: actualWeeklyStreams !== null,
+        combined_dev_multiplier: combined,
+        dev_cost: devCost,
+        has_stream_data: adjustedStreams !== null,
       },
     })
   }

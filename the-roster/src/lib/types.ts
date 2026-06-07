@@ -69,7 +69,27 @@ export interface LabelHistory {
   completed_at: string
 }
 
-export type EventType = 'royalty_paid' | 'artist_signed' | 'contract_expired' | 'tier_up' | 'scout_completed'
+export type EventType = 'royalty_paid' | 'artist_signed' | 'contract_expired' | 'tier_up' | 'scout_completed' | 'release_boost'
+
+export interface DevAllocation {
+  contract_id: string
+  playlist_tier: 'none' | 'light' | 'standard' | 'heavy'
+  social_push_tier: 'none' | 'light' | 'standard' | 'heavy'
+  updated_at: string
+}
+
+export interface ReleaseAmplification {
+  id: string
+  label_id: string
+  contract_id: string
+  artist_id: string
+  spend_tier: 'light' | 'standard' | 'heavy'
+  peak_multiplier: number
+  cost: number
+  triggered_at: string
+  expires_at: string
+  created_at: string
+}
 
 export interface LabelEvent {
   id: string

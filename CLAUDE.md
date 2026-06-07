@@ -55,8 +55,8 @@
 | Standard | 50% | −2% max drop |
 | Heavy | 100% | 0% (streams cannot fall) |
 
-### Release Amplification (event-triggered, treasury-funded, 14-day linear decay)
-Triggered when a new track enters the artist's Spotify top 10. Player has 48h to invest.
+### Release Amplification (manually triggered, treasury-funded, 14-day linear decay)
+Player manually triggers from the contract's dev panel. Cost deducted from treasury immediately.
 | Spend | Cost (from treasury, not dev budget) | Peak multiplier |
 |---|---|---|
 | Light | 1× weekly dev budget | 1.20× |
@@ -66,6 +66,8 @@ Triggered when a new track enters the artist's Spotify top 10. Player has 48h to
 **Royalty formula:** `base streams × playlist pitching × release amplification × rev split %`  
 Social push modifies the floor of base streams *before* multipliers — it is not multiplicative.  
 **Hard cap: playlist pitching × release amplification ≤ 1.60× regardless of spend.**
+
+**API:** `POST /api/dev/allocate` (set weekly playlist/social tiers), `POST /api/dev/release-amplify` (trigger release boost). Both validate contract ownership. Dev spend deducted by weekly cron; release cost deducted immediately.
 
 ---
 
