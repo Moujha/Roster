@@ -737,8 +737,8 @@ export default function ArtistProfileClient({
             transition: 'max-width 200ms ease',
           }}>
 
-            {/* ── ACT 1: READING THE ROOM ── */}
-            {negPhase === 'reading' ? (() => {
+            {/* ── ACT 1 → WAITING → RESULT → OFFER FORM ── */}
+            {negPhase === 'reading' ? ((() => {
               const tags = buildSignalTags(artist, stats, scoutReport, signedByCount)
               const narrative = generateNarrative(artist, stats, scoutReport, undergroundSignal)
               const vColor = stats?.stream_velocity_7d != null
@@ -832,10 +832,7 @@ export default function ArtistProfileClient({
                   </div>
                 </div>
               )
-            })() : null}
-
-            {/* ── WAITING ── */}
-            {negPhase === 'waiting' ? (
+            })()) : negPhase === 'waiting' ? (
               <div style={{ padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
                 <style>{`
                   @keyframes rDotBounce {
