@@ -73,6 +73,97 @@ function artistVoice(tier: string, phase: VoicePhase): string {
   return tier_voices[phase]
 }
 
+// ── Act 1: Reading the Room helpers ──────────────────────────────────────────
+
+type SignalTag = { text: string; scout: boolean }
+
+function buildSignalTags(
+  artist: { tier: string; country: string | null },
+  stats: { stream_velocity_7d: number | null; listener_growth_28d: number | null } | null,
+  scoutReport: { pattern: string; momentum: string; negotiationHint: string | null } | null,
+  signedByCount: number,
+): SignalTag[] {
+  const tags: SignalTag[] = []
+
+  // Public data tags (neutral grey)
+  if (signedByCount === 0) tags.push({ text: 'Unsigned', scout: false })
+  else if (signedByCount === 1) tags.push({ text: 'Signed by 1 label', scout: false })
+  else tags.push({ text: `Signed by ${signedByCount} labels`, scout: false })
+
+  if (stats?.stream_velocity_7d != null) {
+    if (stats.stream_velocity_7d >= 20) tags.push({ text: `+${stats.stream_velocity_7d.toFixed(0)}% velocity this week`, scout: false })
+    else if (stats.stream_velocity_7d <= -10) tags.push({ text: `${stats.stream_velocity_7d.toFixed(0)}% velocity this week`, scout: false })
+  }
+  if (stats?.listener_growth_28d != null && Math.abs(stats.listener_growth_28d) >= 10) {
+    const dir = stats.listener_growth_28d > 0 ? '+' : ''
+    tags.push({ text: `${dir}${stats.listener_growth_28d.toFixed(0)}% listeners (28d)`, scout: false })
+  }
+
+  // Scout report tags (info blue)
+  if (scoutReport) {
+    tags.push({ text: `Pattern: ${scoutReport.pattern.charAt(0).toUpperCase() + scoutReport.pattern.slice(1)}`, scout: true })
+    tags.push({ text: `Momentum: ${scoutReport.momentum.charAt(0).toUpperCase() + scoutReport.momentum.slice(1)}`, scout: true })
+    if (scoutReport.negotiationHint) {
+      const hint = scoutReport.negotiationHint.toLowerCase()
+      if (/freedom|control|independent|split/i.test(hint)) tags.push({ text: 'Scout: Freedom-weighted', scout: true })
+      else if (/money|bonus|guarantee|financial/i.test(hint)) tags.push({ text: 'Scout: Money-weighted', scout: true })
+      else if (/commitment|term|long.term|stability/i.test(hint)) tags.push({ text: 'Scout: Commitment-weighted', scout: true })
+    }
+  }
+
+  return tags
+}
+
+function generateNarrative(
+  artist: { name: string; tier: string; genre: string | null; country: string | null },
+  stats: { monthly_listeners: number | null; stream_velocity_7d: number | null; listener_growth_28d: number | null } | null,
+  scoutReport: { pattern: string; momentum: string; negotiationHint: string | null } | null,
+  undergroundSignal: boolean,
+): string {
+  const ml = stats?.monthly_listeners ?? 0
+  const v = stats?.stream_velocity_7d
+  const g = stats?.listener_growth_28d
+  const tier = artist.tier
+
+  if (undergroundSignal) {
+    if (v != null && v > 15) return `${artist.name} is early — the data is thin but the velocity is real. Underground acts at this stage are high risk, high upside. If the trajectory holds, you're looking at an emerging artist in months.`
+    return `${artist.name} is building quietly. The data is too limited for a confident read — this is a bet on instinct and early signals. Scout them first if you want more before committing.`
+  }
+
+  const mlStr = ml >= 1_000_000 ? `${(ml / 1_000_000).toFixed(1)}M monthly listeners` : ml >= 1_000 ? `${(ml / 1_000).toFixed(0)}K monthly listeners` : 'a small but dedicated audience'
+
+  if (scoutReport) {
+    const hintLower = scoutReport.negotiationHint?.toLowerCase() ?? ''
+    const priority = /freedom|control|independent|split/i.test(hintLower) ? 'control'
+      : /money|bonus|guarantee/i.test(hintLower) ? 'money'
+      : /commitment|term|long/i.test(hintLower) ? 'commitment' : null
+
+    if (priority === 'control') {
+      return `${artist.name} has ${mlStr} and has been building independently. The scout report is clear: this artist values control above everything. Lead with a generous split — the bonus matters less than the terms.`
+    }
+    if (priority === 'money') {
+      return `${artist.name} sits at ${mlStr}. The scout report flags financial terms as the priority — they're weighing offers. Put your best bonus on the table and keep the split reasonable.`
+    }
+    if (priority === 'commitment') {
+      return `${artist.name} has ${mlStr} and is looking for a long-term home. The scout report suggests stability matters more than the upfront. A longer term with solid royalties will land better than a big bonus.`
+    }
+    if (scoutReport.pattern === 'organic') {
+      return `${artist.name} has ${mlStr} and growing organically — no single viral spike, just steady compound growth. That kind of artist retains listeners. Worth paying for.`
+    }
+    if (scoutReport.pattern === 'spike') {
+      return `${artist.name} hit ${mlStr} on the back of a spike. Read the momentum carefully — viral acts can sustain or collapse. The scout report has the detail.`
+    }
+  }
+
+  if (v != null && v >= 20) return `${artist.name} is accelerating — up ${v.toFixed(0)}% in streams this week with ${mlStr}. The timing matters. Moving now catches the wave; waiting means paying more.`
+  if (v != null && v <= -15) return `${artist.name} has ${mlStr} but the numbers are sliding. Could be a dip or a trend — scout them before you commit if the data looks thin.`
+  if (g != null && g >= 20) return `${artist.name} has grown ${g.toFixed(0)}% in listeners over the past month, now at ${mlStr}. Sustained growth at this rate is rare. The window to sign at this price closes fast.`
+
+  if (tier === 'established') return `${artist.name} is established at ${mlStr}. The numbers speak for themselves. This is about terms — come in with a serious offer or don't open the conversation.`
+  if (tier === 'rising') return `${artist.name} has ${mlStr} and is in the rising tier. Strong enough to move the needle, still priced within reach. Read the split carefully.`
+  return `${artist.name} has ${mlStr}. Study the numbers before you build your offer.`
+}
+
 // §4.5 Live offer likelihood indicator — qualitative only, no numbers
 type IndicatorState = { color: 'green' | 'yellow' | 'red'; label: string; hint: string | null }
 
@@ -168,7 +259,7 @@ type ScoutReport = {
   negotiationHint: string | null
 } | null
 
-type NegPhase = 'idle' | 'waiting' | 'countered' | 'accepted' | 'rejected'
+type NegPhase = 'idle' | 'reading' | 'waiting' | 'countered' | 'accepted' | 'rejected'
 
 type CounterOffer = {
   bonus: number
@@ -476,7 +567,7 @@ export default function ArtistProfileClient({
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => { setShowModal(true); setNegPhase('reading') }}
           disabled={!canSign}
           style={{
             fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 20px',
@@ -642,8 +733,106 @@ export default function ArtistProfileClient({
         }}>
           <div style={{
             background: 'var(--bg-panel)', border: '2px solid var(--line)',
-            padding: 28, width: '100%', maxWidth: 460,
+            padding: 28, width: '100%', maxWidth: negPhase === 'reading' ? 520 : 460,
+            transition: 'max-width 200ms ease',
           }}>
+
+            {/* ── ACT 1: READING THE ROOM ── */}
+            {negPhase === 'reading' ? (() => {
+              const tags = buildSignalTags(artist, stats, scoutReport, signedByCount)
+              const narrative = generateNarrative(artist, stats, scoutReport, undergroundSignal)
+              const vColor = stats?.stream_velocity_7d != null
+                ? (stats.stream_velocity_7d >= 0 ? 'var(--lime)' : 'var(--rose)')
+                : 'var(--ink-mid)'
+              return (
+                <div>
+                  {/* Identity line */}
+                  <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--line-soft)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <span className="tag" style={{ color: tierColor, border: `1px solid ${tierColor}`, padding: '2px 7px', fontSize: 9, background: `${tierColor}18` }}>
+                        {artist.tier.toUpperCase()}
+                      </span>
+                      {artist.country && <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, border: '1px solid var(--line)', padding: '2px 6px' }}>{artist.country}</span>}
+                      {artist.genre && <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, border: '1px solid var(--line)', padding: '2px 6px' }}>{artist.genre.toUpperCase().slice(0, 20)}</span>}
+                    </div>
+                    <div className="display" style={{ fontSize: 36, color: 'var(--ink-hi)', lineHeight: 0.9 }}>{artist.name}</div>
+                  </div>
+
+                  {/* Key stats: 3 numbers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+                    <div>
+                      <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>LISTENERS</div>
+                      <div className="display" style={{ fontSize: 22, color: 'var(--cyan)', lineHeight: 1 }}>
+                        {stats?.monthly_listeners ? fmtListeners(stats.monthly_listeners) : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>7D VELOCITY</div>
+                      <div className="display" style={{ fontSize: 22, color: vColor, lineHeight: 1 }}>
+                        {stats?.stream_velocity_7d != null
+                          ? `${stats.stream_velocity_7d >= 0 ? '+' : ''}${stats.stream_velocity_7d.toFixed(1)}%`
+                          : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>MOMENTUM</div>
+                      <div className="display" style={{ fontSize: 22, color: undergroundSignal ? 'var(--ink-low)' : 'var(--lime)', lineHeight: 1 }}>
+                        {undergroundSignal ? 'N/A' : stats?.momentum_score != null ? stats.momentum_score.toFixed(0) : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signal tags */}
+                  {tags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 16 }}>
+                      {tags.map((tag, i) => (
+                        <span key={i} className="tag" style={{
+                          fontSize: 9, padding: '3px 8px',
+                          color: tag.scout ? '#60a5fa' : 'var(--ink-mid)',
+                          border: `1px solid ${tag.scout ? 'rgba(96,165,250,0.4)' : 'var(--line)'}`,
+                          background: tag.scout ? 'rgba(96,165,250,0.08)' : 'var(--bg-tile)',
+                        }}>
+                          {tag.text}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Narrative paragraph */}
+                  <div style={{
+                    padding: '12px 14px', background: 'var(--bg-tile)',
+                    borderLeft: '2px solid var(--line)', marginBottom: 24,
+                  }}>
+                    <div style={{ color: 'var(--ink-mid)', fontSize: 12, lineHeight: 1.7 }}>
+                      {narrative}
+                    </div>
+                  </div>
+
+                  {/* CTAs */}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setShowModal(false); resetModal() }}
+                      style={{
+                        fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 16px',
+                        border: '1px solid var(--line)', color: 'var(--ink-low)', background: 'transparent', cursor: 'pointer',
+                      }}
+                    >
+                      BACK
+                    </button>
+                    <button
+                      onClick={() => setNegPhase('idle')}
+                      style={{
+                        flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '12px',
+                        border: '2px solid var(--lime)', color: 'var(--lime)',
+                        background: 'rgba(200,255,58,0.08)', cursor: 'pointer', letterSpacing: 1,
+                      }}
+                    >
+                      BUILD YOUR OFFER →
+                    </button>
+                  </div>
+                </div>
+              )
+            })() : null}
 
             {/* ── WAITING ── */}
             {negPhase === 'waiting' ? (
