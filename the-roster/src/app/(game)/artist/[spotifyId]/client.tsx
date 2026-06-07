@@ -168,7 +168,7 @@ type ScoutReport = {
   negotiationHint: string | null
 } | null
 
-type NegPhase = 'idle' | 'countered' | 'accepted' | 'rejected'
+type NegPhase = 'idle' | 'waiting' | 'countered' | 'accepted' | 'rejected'
 
 type CounterOffer = {
   bonus: number
@@ -216,6 +216,18 @@ export default function ArtistProfileClient({
   const [rejectionType, setRejectionType] = useState<'outright' | 'round2' | 'cooldown'>('outright')
   const negRound = negId ? 2 : 1
 
+  // Waiting interstitial — stores resolved outcome until delay elapses
+  const [pendingPhase, setPendingPhase] = useState<NegPhase | null>(null)
+  const [waitingText] = useState(() => {
+    const lines = [
+      'Passing it to their team…',
+      'Their manager is reviewing…',
+      'Reading your offer…',
+      'Taking a moment…',
+    ]
+    return lines[Math.floor(Math.random() * lines.length)]
+  })
+
   // Live likelihood indicator — debounced, qualitative only
   const [indicator, setIndicator] = useState<IndicatorState | null>(null)
   useEffect(() => {
@@ -227,6 +239,14 @@ export default function ArtistProfileClient({
     }, 280)
     return () => clearTimeout(t)
   }, [bonus, revSplit, term]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reveal result after 1.8–2.5s interstitial
+  useEffect(() => {
+    if (negPhase !== 'waiting' || !pendingPhase) return
+    const delay = 1800 + Math.random() * 700
+    const t = setTimeout(() => setNegPhase(pendingPhase), delay)
+    return () => clearTimeout(t)
+  }, [negPhase, pendingPhase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ml = stats?.monthly_listeners ?? 0
   const estWeekly = ml * 0.035 * (revSplit / 100)
@@ -301,17 +321,18 @@ export default function ArtistProfileClient({
     }
 
     if (data.outcome === 'accepted') {
-      setNegPhase('accepted')
+      setPendingPhase('accepted')
     } else if (data.outcome === 'countered') {
       setOriginalOffer({ bonus, rev_split_label_pct: revSplit, term_months: term })
       setNegId(data.negotiation_id)
       setCounterOffer(data.counter)
-      setNegPhase('countered')
+      setPendingPhase('countered')
     } else if (data.outcome === 'rejected') {
       setCoolingOffUntil(data.cooling_off_until ?? null)
       setRejectionType(negRound === 2 ? 'round2' : 'outright')
-      setNegPhase('rejected')
+      setPendingPhase('rejected')
     }
+    setNegPhase('waiting')
   }
 
   async function acceptCounter() {
@@ -335,7 +356,8 @@ export default function ArtistProfileClient({
     if (!res.ok) { setSubmitError(data.error ?? 'Accept failed'); return }
     if (data.outcome === 'accepted') {
       setAcceptedViaCounter(true)
-      setNegPhase('accepted')
+      setPendingPhase('accepted')
+      setNegPhase('waiting')
     }
   }
 
@@ -623,8 +645,33 @@ export default function ArtistProfileClient({
             padding: 28, width: '100%', maxWidth: 460,
           }}>
 
-            {/* ── ACCEPTED ── */}
-            {negPhase === 'accepted' ? (
+            {/* ── WAITING ── */}
+            {negPhase === 'waiting' ? (
+              <div style={{ padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+                <style>{`
+                  @keyframes rDotBounce {
+                    0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+                    40%           { transform: translateY(-8px); opacity: 1; }
+                  }
+                  @media (prefers-reduced-motion: reduce) {
+                    .r-dot { animation: none !important; opacity: 0.7 !important; }
+                  }
+                `}</style>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="r-dot" style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: 'var(--ink-mid)',
+                      animation: `rDotBounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                    }} />
+                  ))}
+                </div>
+                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 10, letterSpacing: 1 }}>
+                  {waitingText}
+                </div>
+              </div>
+
+            ) : negPhase === 'accepted' ? (
               <div style={{ padding: '4px 0' }}>
                 <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, letterSpacing: 2, marginBottom: 16 }}>SIGNED</div>
                 <div className="display" style={{ fontSize: 40, color: 'var(--lime)', lineHeight: 0.85, marginBottom: 20 }}>
