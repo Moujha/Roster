@@ -6,11 +6,27 @@ const GENRES = ['Afrobeats', 'Hip-Hop', 'Indie', 'Electronic', 'Pop', 'R&B / Sou
 const SEL_COLORS = ['var(--lime)', 'var(--cyan)'] as const
 const SEL_BG = ['rgba(200,255,58,0.1)', 'rgba(62,224,255,0.08)'] as const
 
+const COUNTRIES: { code: string; label: string }[] = [
+  { code: 'US', label: 'United States' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'FR', label: 'France' },
+  { code: 'DE', label: 'Germany' },
+  { code: 'JP', label: 'Japan' },
+  { code: 'BR', label: 'Brazil' },
+  { code: 'CA', label: 'Canada' },
+  { code: 'AU', label: 'Australia' },
+  { code: 'NG', label: 'Nigeria' },
+  { code: 'KR', label: 'South Korea' },
+  { code: 'MX', label: 'Mexico' },
+  { code: 'SE', label: 'Sweden' },
+]
+
 export default function OnboardingPage() {
   const router = useRouter()
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [labelName, setLabelName] = useState('')
   const [genres, setGenres] = useState<string[]>([])
+  const [country, setCountry] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -37,6 +53,17 @@ export default function OnboardingPage() {
     setStep(3); setLoading(false)
   }
 
+  async function submitStep3() {
+    if (!country) return
+    setLoading(true)
+    await fetch('/api/labels/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ country }),
+    })
+    setStep(4); setLoading(false)
+  }
+
   function toggleGenre(g: string) {
     setGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : prev.length < 2 ? [...prev, g] : prev)
   }
@@ -48,6 +75,8 @@ export default function OnboardingPage() {
     opacity: active ? 1 : 0.35,
   })
 
+  const totalSteps = 4
+
   return (
     <div style={{
       minHeight: '100vh', background: 'var(--bg-deep)', display: 'flex',
@@ -58,10 +87,10 @@ export default function OnboardingPage() {
         {/* Logo + progress */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div className="display" style={{ fontSize: 42, color: 'var(--lime)', letterSpacing: 4 }}>ROSTER</div>
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginTop: 4 }}>STEP {step} OF 3</div>
+          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginTop: 4 }}>STEP {step} OF {totalSteps}</div>
           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 8 }}>
-            {[1, 2, 3].map(i => (
-              <div key={i} style={{ height: 3, width: 40, background: i <= step ? 'var(--lime)' : 'var(--bg-tile)' }} />
+            {Array.from({ length: totalSteps }, (_, i) => (
+              <div key={i} style={{ height: 3, width: 32, background: i + 1 <= step ? 'var(--lime)' : 'var(--bg-tile)' }} />
             ))}
           </div>
         </div>
@@ -129,6 +158,45 @@ export default function OnboardingPage() {
         )}
 
         {step === 3 && (
+          <div>
+            <div className="tag" style={{ color: 'var(--ink-low)', marginBottom: 4, fontSize: 9 }}>WHERE IS YOUR LABEL BASED?</div>
+            <div style={{ color: 'var(--ink-mid)', fontSize: 11, marginBottom: 12 }}>Affects regional trending picks</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 12 }}>
+              {COUNTRIES.map(c => {
+                const sel = country === c.code
+                return (
+                  <div
+                    key={c.code}
+                    onClick={() => setCountry(c.code)}
+                    style={{
+                      background: sel ? 'rgba(200,255,58,0.1)' : 'var(--bg-panel)',
+                      border: `${sel ? 2 : 1}px solid ${sel ? 'var(--lime)' : 'var(--line)'}`,
+                      padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                    }}
+                  >
+                    <span className="tag" style={{ color: sel ? 'var(--lime)' : 'var(--ink-low)', fontSize: 9, minWidth: 20 }}>{c.code}</span>
+                    <span className="tag" style={{ color: sel ? 'var(--lime)' : 'var(--ink-mid)', fontSize: 9 }}>{c.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+            <button onClick={submitStep3} disabled={!country || loading} style={btnStyle(!!country && !loading)}>
+              {loading ? 'SAVING...' : 'CONTINUE'}
+            </button>
+            <button
+              onClick={() => setStep(4)}
+              style={{
+                width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '10px',
+                border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent',
+                cursor: 'pointer', letterSpacing: 1, marginTop: 6,
+              }}
+            >
+              SKIP
+            </button>
+          </div>
+        )}
+
+        {step === 4 && (
           <div>
             <div className="tag" style={{ color: 'var(--ink-low)', marginBottom: 12, fontSize: 9 }}>YOUR FIRST SIGNING?</div>
             <div style={{ color: 'var(--ink-mid)', fontSize: 12, marginBottom: 16 }}>Head to Search to find artists and make your first offer.</div>

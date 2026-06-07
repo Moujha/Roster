@@ -4,6 +4,7 @@ import type { Label, Contract, LabelEvent, Scout, DevAllocation, ReleaseAmplific
 import type { LeaderboardRow } from '../leaderboard/client'
 import { computeWeeklyRoyalties } from '@/lib/royalty'
 import { describeEvent, relativeTime } from '@/lib/activity-helpers'
+import CountrySetup from './country-setup'
 
 type ContractRow = Contract & { artists: { name: string; tier: string; spotify_id: string } }
 type ScoutRow = Scout & { artists: { name: string; tier: string; spotify_id: string } }
@@ -485,6 +486,9 @@ export default async function DashboardPage() {
 
         </div>
       </div>
+
+      {/* ── Country setup prompt ───────────────────────────────────────────── */}
+      {!label.country && <CountrySetup />}
 
       {/* ── Discovery ──────────────────────────────────────────────────────── */}
       {(breaking.length > 0 || genrePicks.length > 0 || regional.length > 0) && (
