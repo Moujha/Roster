@@ -213,6 +213,50 @@ export default async function DashboardPage() {
   return (
     <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 1200 }}>
 
+      {/* ── Week progress indicator ────────────────────────────────────────── */}
+      {(() => {
+        const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+        // getDay(): 0=Sun,1=Mon…6=Sat → convert to Mon=0…Sun=6
+        const todayIdx = (new Date().getDay() + 6) % 7
+        const isSunday = todayIdx === 6
+        const isMonday = todayIdx === 0
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {days.map((d, i) => {
+                const isPast    = i < todayIdx
+                const isCurrent = i === todayIdx
+                return (
+                  <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{
+                      width: 28, height: 4,
+                      background: isCurrent ? 'var(--lime)' : isPast ? 'var(--ink-low)' : 'var(--bg-tile)',
+                      opacity: isCurrent ? 1 : isPast ? 0.5 : 0.3,
+                    }} />
+                    <span className="tag" style={{
+                      fontSize: 8,
+                      color: isCurrent ? 'var(--lime)' : isPast ? 'var(--ink-low)' : 'var(--ink-low)',
+                      opacity: isCurrent ? 1 : isPast ? 0.6 : 0.3,
+                      fontWeight: isCurrent ? 700 : 400,
+                    }}>{d}</span>
+                  </div>
+                )
+              })}
+            </div>
+            {isMonday && (
+              <span className="tag" style={{ color: 'var(--lime)', fontSize: 9, border: '1px solid rgba(200,255,58,0.4)', padding: '2px 8px', background: 'rgba(200,255,58,0.08)' }}>
+                BUDGET UNLOCKED
+              </span>
+            )}
+            {isSunday && (
+              <span className="tag" style={{ color: 'var(--amber)', fontSize: 9, border: '1px solid rgba(255,176,32,0.4)', padding: '2px 8px', background: 'rgba(255,176,32,0.08)' }}>
+                ROYALTIES CALCULATING…
+              </span>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
