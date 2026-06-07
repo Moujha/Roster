@@ -81,6 +81,49 @@ Social push modifies the floor of base streams *before* multipliers — it is no
 
 ---
 
+## Signing Mechanic (§4, v1.1 — points-based negotiation)
+
+Artists have **hidden priority weights** (Money / Freedom / Commitment, sum = 1.0) and a **hidden target score** (55–75).
+
+**Offer scoring formula:**
+```
+offer_score = (bonus_score × money_weight)
+            + (split_score × freedom_weight)
+            + (term_score  × commitment_weight)
+```
+
+| Variable | Scoring |
+|---|---|
+| Bonus score | Linear 0–100 from floor to top of tier range |
+| Split score | Linear 0–100: label_pct 40→0, label_pct 20→100 |
+| Term score | Commitment-dominant: 12mo=100, 3mo=0. Freedom-dominant: **inverted** (3mo=100, 12mo=0). |
+
+**Rev split range:** label_pct 20–40 (artist 60–80%). *Not* 10–50.
+
+**Outcomes:**
+- `score ≥ target` → **accepted** (contract created)
+- `score ≥ target − window` → **countered** (artist adjusts dominant variable, reveals priority)
+- `score < target − window` → **rejected** (deal dead)
+- Round 2 failure → **cooling-off** (30-day lock for that label only)
+
+**Reputation modifier on target score (not yet implemented):**
+| Tier | Target modifier | Counter window |
+|---|---|---|
+| New | 0 | 15 pts below target |
+| Established | −5 | 20 pts below target |
+| Veteran | −10 | 25 pts below target |
+
+**Scout report 4th output:** Negotiation profile hint (string) — directional signal from observed behaviour. Never names the dominant weight directly. See `src/lib/negotiation.ts → negotiationHint()`.
+
+**Priority weight assignment by tier:**
+- Underground/Emerging → Freedom-dominant (~0.5)
+- Rising → Commitment-dominant (~0.5)
+- Established → Money-dominant (~0.5)
+
+**API:** `POST /api/contracts/offer` handles all negotiation rounds. Old `POST /api/contracts` still exists but is not used by the UI.
+
+---
+
 ## Contract Terms
 | Term | Character |
 |---|---|
@@ -124,7 +167,7 @@ Reputation gain measured against **baseline trajectory at signing**, not absolut
 
 **Affinity modifier:** −20% if existing signed artist shares country or genre. Cap is 20% total. See §9.4.3.
 
-**Scout report outputs (3):** Pattern classification (Organic/Spike/Mixed) · Precise signing bonus estimate · Momentum confidence (Stable/Moderate/Volatile). See §9.4.4.
+**Scout report outputs (4):** Pattern classification (Organic/Spike/Mixed) · Precise signing bonus estimate · Momentum confidence (Stable/Moderate/Volatile) · Negotiation profile hint. See §9.4.4 and `src/lib/negotiation.ts`.
 
 ---
 

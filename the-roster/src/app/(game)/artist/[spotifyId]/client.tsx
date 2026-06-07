@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Artist, ArtistStats, Label, Scout } from '@/lib/types'
@@ -24,6 +24,110 @@ function fmtListeners(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
   return String(n)
+}
+
+// Artist voice — tier-appropriate quotes for each negotiation phase
+type VoicePhase = 'accepted_clean' | 'accepted_counter' | 'accepted_round2' | 'countered' | 'rejected_outright' | 'rejected_round2' | 'cooling_off'
+
+function artistVoice(tier: string, phase: VoicePhase): string {
+  const voices: Record<string, Record<VoicePhase, string>> = {
+    underground: {
+      accepted_clean:   "You saw something before the numbers backed it up. That's rare. Let's go.",
+      accepted_counter: "You listened. That matters more than the money. We're doing this.",
+      accepted_round2:  "You held your ground. I respect that. Deal.",
+      countered:        "I'm interested, but I need to know you respect what I'm building. Look at what I changed.",
+      rejected_outright:"That offer tells me you don't know what you're signing. Come back when you do.",
+      rejected_round2:  "We tried twice. It didn't land. I need to move on.",
+      cooling_off:      "We had this conversation already. I said I'd be available after a certain date. That date hasn't come.",
+    },
+    emerging: {
+      accepted_clean:   "Your offer says you believe in where I'm heading. I'm in.",
+      accepted_counter: "You adjusted. That tells me you're serious. Let's build.",
+      accepted_round2:  "Second round, better terms. You came through. We're signing.",
+      countered:        "The offer's not far off, but something needs to move. See what I adjusted.",
+      rejected_outright:"My team looked at this and said no. So did I. Not close enough.",
+      rejected_round2:  "I gave you a second chance and the terms didn't move. I'm done on this one.",
+      cooling_off:      "My team is still processing where things left off. We said we'd be open to talking again after a certain date.",
+    },
+    rising: {
+      accepted_clean:   "These terms work for both of us. You read the room. Let's go.",
+      accepted_counter: "You came back with a better offer. That's what I was looking for. Deal.",
+      accepted_round2:  "I'm glad we got there. Two rounds, but we got there. Welcome.",
+      countered:        "There's potential here, but I need one thing to change. Check the revised terms.",
+      rejected_outright:"My management reviewed this and we're not engaging. It's not the right offer.",
+      rejected_round2:  "We went two rounds. It wasn't enough. I've got to keep moving.",
+      cooling_off:      "There were talks and they didn't go anywhere. I asked for some time before reopening. We're not there yet.",
+    },
+    established: {
+      accepted_clean:   "The numbers work. You know what you're doing. Welcome to the label.",
+      accepted_counter: "You came back with the right adjustment. We can work with this.",
+      accepted_round2:  "Two rounds to get here, but the final offer is solid. Let's move.",
+      countered:        "Interesting offer. One variable isn't sitting right with my team. We've put forward something that works better for us.",
+      rejected_outright:"We don't negotiate from that position. When you're ready to have a serious conversation, reach out.",
+      rejected_round2:  "We gave two rounds. The offer didn't reflect where we need to be. We're stepping away.",
+      cooling_off:      "My team has been clear — we're not entertaining new conversations until a specific date has passed.",
+    },
+  }
+  const tier_voices = voices[tier] ?? voices.emerging
+  return tier_voices[phase]
+}
+
+// §4.5 Live offer likelihood indicator — qualitative only, no numbers
+type IndicatorState = { color: 'green' | 'yellow' | 'red'; label: string; hint: string | null }
+
+function computeIndicator(
+  tier: string,
+  bonus: number,
+  revSplit: number,
+  term: 3 | 6 | 12,
+  bonusRange: [number, number, number] | undefined,
+  hasScouted: boolean,
+  negotiationHint: string | null,
+): IndicatorState {
+  const dominant = tier === 'established' ? 'bonus' : tier === 'rising' ? 'term' : 'split'
+
+  function scoreBonus() {
+    if (!bonusRange) return 50
+    return Math.max(0, Math.min(100, (bonus - bonusRange[0]) / (bonusRange[1] - bonusRange[0]) * 100))
+  }
+  function scoreSplit() { return (40 - revSplit) / 20 * 100 }
+  function scoreTerm() { return term === 12 ? 100 : term === 6 ? 50 : 0 }
+
+  const dominantScore = dominant === 'bonus' ? scoreBonus() : dominant === 'split' ? scoreSplit() : scoreTerm()
+
+  if (!hasScouted) {
+    if (dominantScore >= 65) return { color: 'green', label: 'LOOKS PROMISING', hint: null }
+    if (dominantScore >= 35) return { color: 'yellow', label: 'HARD TO READ', hint: null }
+    return { color: 'red', label: 'LIKELY MISALIGNED', hint: null }
+  }
+
+  // With scout — identify variable from hint text, more precise
+  let hintVar: 'split' | 'bonus' | 'term' | null = null
+  if (negotiationHint) {
+    if (/split|creative|control|independence/i.test(negotiationHint)) hintVar = 'split'
+    else if (/bonus|market value|money|guarantee|offer/i.test(negotiationHint)) hintVar = 'bonus'
+    else if (/term|stability|commitment|long|partner/i.test(negotiationHint)) hintVar = 'term'
+  }
+  const hintScore = hintVar === 'split' ? scoreSplit() : hintVar === 'bonus' ? scoreBonus() : hintVar === 'term' ? scoreTerm() : dominantScore
+  const combined = dominantScore * 0.55 + hintScore * 0.45
+
+  const hintLine = (v: 'split' | 'bonus' | 'term' | null) =>
+    v === 'split' ? 'Split appears to be the weak point.' :
+    v === 'bonus' ? 'Bonus may not be landing.' :
+    v === 'term' ? 'Term length may be misaligned.' : null
+
+  if (combined >= 75) return { color: 'green', label: 'STRONG MATCH', hint: null }
+  if (combined >= 60) return { color: 'green', label: 'GOOD MATCH', hint: hintVar && hintScore < 70 ? `Consider a slightly more generous ${hintVar === 'split' ? 'split' : hintVar === 'bonus' ? 'bonus' : 'term'}.` : null }
+  if (combined >= 45) return { color: 'yellow', label: 'PARTIAL MATCH', hint: hintLine(hintVar) }
+  if (combined >= 30) return { color: 'yellow', label: 'WEAK SIGNAL', hint: hintLine(hintVar) ?? 'Terms may be misaligned.' }
+  return { color: 'red', label: 'POOR MATCH', hint: 'Terms appear significantly misaligned.' }
+}
+
+function counterTell(original: { bonus: number; rev_split_label_pct: number; term_months: number }, counter: { bonus: number; rev_split_label_pct: number; term_months: number }): string {
+  if (counter.rev_split_label_pct !== original.rev_split_label_pct) return "They moved the split. That tells you something."
+  if (counter.bonus !== original.bonus) return "They pushed the bonus. Money matters to them."
+  if (counter.term_months !== original.term_months) return "They changed the term. Think about what that signals."
+  return "Look at what changed in their terms."
 }
 
 function MomentumRing({ score }: { score: number }) {
@@ -60,7 +164,16 @@ type ScoutReport = {
   pattern: 'organic' | 'spike' | 'mixed'
   bonusEstimate: number
   momentum: 'stable' | 'moderate' | 'volatile'
+  negotiationHint: string | null
 } | null
+
+type NegPhase = 'idle' | 'countered' | 'accepted' | 'rejected'
+
+type CounterOffer = {
+  bonus: number
+  rev_split_label_pct: number
+  term_months: 3 | 6 | 12
+}
 
 export default function ArtistProfileClient({
   artist, stats, spark, signedByCount, undergroundSignal, label, rosterCount,
@@ -91,6 +204,28 @@ export default function ArtistProfileClient({
   const [scouting, setScouting] = useState(false)
   const [scoutError, setScoutError] = useState('')
 
+  // Negotiation state
+  const [negPhase, setNegPhase] = useState<NegPhase>('idle')
+  const [negId, setNegId] = useState<string | null>(null)
+  const [counterOffer, setCounterOffer] = useState<CounterOffer | null>(null)
+  const [originalOffer, setOriginalOffer] = useState<CounterOffer | null>(null)
+  const [coolingOffUntil, setCoolingOffUntil] = useState<string | null>(null)
+  const [acceptedViaCounter, setAcceptedViaCounter] = useState(false)
+  const [rejectionType, setRejectionType] = useState<'outright' | 'round2' | 'cooldown'>('outright')
+  const negRound = negId ? 2 : 1
+
+  // Live likelihood indicator — debounced, qualitative only
+  const [indicator, setIndicator] = useState<IndicatorState | null>(null)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setIndicator(computeIndicator(
+        artist.tier, bonus, revSplit, term, bonusRange,
+        !!scoutReport, scoutReport?.negotiationHint ?? null,
+      ))
+    }, 280)
+    return () => clearTimeout(t)
+  }, [bonus, revSplit, term]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const ml = stats?.monthly_listeners ?? 0
   const estWeekly = ml * 0.035 * (revSplit / 100)
   const treasuryAfter = label.treasury - bonus
@@ -98,6 +233,17 @@ export default function ArtistProfileClient({
   const estTotal = estWeekly * (term * 4.33)
 
   const canSign = artist.tier !== 'major' && rosterCount < 5 && label.treasury >= bonus
+
+  function resetModal() {
+    setNegPhase('idle')
+    setNegId(null)
+    setCounterOffer(null)
+    setOriginalOffer(null)
+    setCoolingOffUntil(null)
+    setAcceptedViaCounter(false)
+    setRejectionType('outright')
+    setSubmitError('')
+  }
 
   const scoutWeeksLeft = scout && !scout.completed_at
     ? Math.max(0, Math.ceil(
@@ -120,18 +266,75 @@ export default function ArtistProfileClient({
     router.refresh()
   }
 
-  async function confirmSign() {
+  async function sendOffer(opts: { acceptCounter?: boolean } = {}) {
     setSubmitting(true); setSubmitError('')
-    const res = await fetch('/api/contracts', {
+    const body: Record<string, unknown> = {
+      artist_id: artist.id,
+      bonus,
+      rev_split_label_pct: revSplit,
+      term_months: term,
+    }
+    if (negId) body.negotiation_id = negId
+    if (opts.acceptCounter) body.accept_counter = true
+
+    const res = await fetch('/api/contracts/offer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ artist_id: artist.id, signing_bonus: bonus, rev_split_label_pct: revSplit, term_months: term }),
+      body: JSON.stringify(body),
     })
+    setSubmitting(false)
+
+    const data = await res.json()
+
     if (!res.ok) {
-      setSubmitError((await res.json()).error ?? 'Signing failed')
-      setSubmitting(false); return
+      // Cooling-off 409 → show storytelling screen, not red text
+      if (res.status === 409 && data.cooling_off_until) {
+        setCoolingOffUntil(data.cooling_off_until)
+        setRejectionType('cooldown')
+        setNegPhase('rejected')
+        return
+      }
+      setSubmitError(data.error ?? 'Offer failed')
+      return
     }
-    router.push('/dashboard')
+
+    if (data.outcome === 'accepted') {
+      setNegPhase('accepted')
+    } else if (data.outcome === 'countered') {
+      setOriginalOffer({ bonus, rev_split_label_pct: revSplit, term_months: term })
+      setNegId(data.negotiation_id)
+      setCounterOffer(data.counter)
+      setNegPhase('countered')
+    } else if (data.outcome === 'rejected') {
+      setCoolingOffUntil(data.cooling_off_until ?? null)
+      setRejectionType(negRound === 2 ? 'round2' : 'outright')
+      setNegPhase('rejected')
+    }
+  }
+
+  async function acceptCounter() {
+    if (!counterOffer) return
+    setSubmitting(true); setSubmitError('')
+
+    const res = await fetch('/api/contracts/offer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        artist_id: artist.id,
+        bonus: counterOffer.bonus,
+        rev_split_label_pct: counterOffer.rev_split_label_pct,
+        term_months: counterOffer.term_months,
+        negotiation_id: negId,
+        accept_counter: true,
+      }),
+    })
+    setSubmitting(false)
+    const data = await res.json()
+    if (!res.ok) { setSubmitError(data.error ?? 'Accept failed'); return }
+    if (data.outcome === 'accepted') {
+      setAcceptedViaCounter(true)
+      setNegPhase('accepted')
+    }
   }
 
   return (
@@ -281,6 +484,12 @@ export default function ArtistProfileClient({
                 color: scoutReport.momentum === 'stable' ? 'var(--lime)' : scoutReport.momentum === 'volatile' ? 'var(--rose)' : 'var(--amber)',
               }}>{scoutReport.momentum.toUpperCase()}</span>
             </div>
+            {scoutReport.negotiationHint && (
+              <div style={{ padding: '8px 12px', background: 'var(--bg-panel)', border: '2px solid var(--violet)' }}>
+                <div className="tag" style={{ color: 'var(--violet)', fontSize: 9, marginBottom: 4 }}>NEGOTIATION INTEL</div>
+                <div style={{ color: 'var(--ink-mid)', fontSize: 11 }}>{scoutReport.negotiationHint}</div>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ color: 'var(--ink-mid)', fontSize: 12 }}>Scout complete — no stats available</div>
@@ -297,92 +506,287 @@ export default function ArtistProfileClient({
             background: 'var(--bg-panel)', border: '2px solid var(--line)',
             padding: 28, width: '100%', maxWidth: 460,
           }}>
-            <div className="tag" style={{ color: 'var(--lime)', fontSize: 10, marginBottom: 20 }}>
-              MAKE AN OFFER -- {artist.name.toUpperCase()}
-            </div>
 
-            {/* Signing bonus */}
-            <div style={{ marginBottom: 16 }}>
-              <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>SIGNING BONUS</div>
-              {bonusRange && (
-                <input type="range" min={bonusRange[0]} max={bonusRange[1]}
-                  value={bonus} onChange={e => setBonus(Number(e.target.value))}
-                  style={{ width: '100%', marginBottom: 6, accentColor: 'var(--lime)' }}
-                />
-              )}
-              <input type="number" value={bonus}
-                min={bonusRange?.[0] ?? 0} max={bonusRange?.[1] ?? 999_999}
-                onChange={e => setBonus(Number(e.target.value))}
-                style={{
-                  background: 'var(--bg-tile)', border: '1px solid var(--line)',
-                  color: 'var(--amber)', fontFamily: 'Jersey 25, monospace', fontSize: 24,
-                  padding: '6px 10px', width: '100%', outline: 'none',
-                }}
-              />
-            </div>
-
-            {/* Rev split */}
-            <div style={{ marginBottom: 16 }}>
-              <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>
-                LABEL REVENUE SPLIT: {revSplit}%
-              </div>
-              <input type="range" min={10} max={50} value={revSplit}
-                onChange={e => setRevSplit(Number(e.target.value))}
-                style={{ width: '100%', accentColor: 'var(--cyan)' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>10% (artist-friendly)</span>
-                <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>50% (label-heavy)</span>
-              </div>
-            </div>
-
-            {/* Term */}
-            <div style={{ marginBottom: 20 }}>
-              <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>CONTRACT TERM</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {([3, 6, 12] as const).map(t => (
-                  <button key={t} onClick={() => setTerm(t)} style={{
-                    flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '8px',
-                    border: `2px solid ${term === t ? 'var(--lime)' : 'var(--line)'}`,
-                    color: term === t ? 'var(--lime)' : 'var(--ink-mid)',
-                    background: term === t ? 'rgba(200,255,58,0.08)' : 'transparent', cursor: 'pointer',
-                  }}>{t} MO</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Live preview */}
-            <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--line)', padding: 12, marginBottom: 20 }}>
-              <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 8 }}>DEAL PREVIEW</div>
-              {[
-                { label: 'EST. WEEKLY ROYALTIES', value: fmtUSD(estWeekly), color: 'var(--lime)' },
-                { label: 'TREASURY AFTER SIGNING', value: fmtUSD(treasuryAfter), color: treasuryAfter < 0 ? 'var(--rose)' : 'var(--amber)' },
-                { label: 'BREAK-EVEN', value: breakEvenWeeks ? `${breakEvenWeeks} WEEKS` : 'N/A', color: 'var(--cyan)' },
-                { label: `EST. TOTAL (${term} MO)`, value: fmtUSD(estTotal), color: 'var(--violet)' },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{label}</span>
-                  <span className="tag" style={{ color, fontSize: 10 }}>{value}</span>
+            {/* ── ACCEPTED ── */}
+            {negPhase === 'accepted' ? (
+              <div style={{ padding: '4px 0' }}>
+                <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, letterSpacing: 2, marginBottom: 16 }}>SIGNED</div>
+                <div className="display" style={{ fontSize: 40, color: 'var(--lime)', lineHeight: 0.85, marginBottom: 20 }}>
+                  {artist.name}
                 </div>
-              ))}
-            </div>
 
-            {submitError && <div className="tag" style={{ color: 'var(--rose)', fontSize: 9, marginBottom: 8 }}>{submitError}</div>}
+                {/* Artist quote */}
+                <div style={{ padding: '14px 16px', background: 'rgba(200,255,58,0.04)', border: '1px solid rgba(200,255,58,0.25)', marginBottom: 20 }}>
+                  <div style={{ color: 'var(--ink-hi)', fontSize: 13, lineHeight: 1.65, fontStyle: 'italic', marginBottom: 8 }}>
+                    &ldquo;{artistVoice(artist.tier, acceptedViaCounter ? 'accepted_counter' : negRound === 2 ? 'accepted_round2' : 'accepted_clean')}&rdquo;
+                  </div>
+                  <div className="tag" style={{ color: 'var(--lime)', fontSize: 9 }}>— {artist.name}</div>
+                </div>
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowModal(false)} style={{
-                flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
-                border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent', cursor: 'pointer',
-              }}>CANCEL</button>
-              <button onClick={confirmSign} disabled={submitting || treasuryAfter < 0} style={{
-                flex: 2, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
-                border: '2px solid var(--lime)', color: 'var(--lime)',
-                background: 'rgba(200,255,58,0.1)', cursor: submitting ? 'not-allowed' : 'pointer',
-                opacity: submitting || treasuryAfter < 0 ? 0.5 : 1,
-              }}>
-                {submitting ? 'SIGNING...' : 'CONFIRM SIGNING'}
-              </button>
-            </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 20 }}>
+                  {[
+                    { label: 'SIGNING BONUS', value: fmtUSD(acceptedViaCounter && counterOffer ? counterOffer.bonus : bonus) },
+                    { label: 'SPLIT', value: `${100 - (acceptedViaCounter && counterOffer ? counterOffer.rev_split_label_pct : revSplit)}% ARTIST / ${acceptedViaCounter && counterOffer ? counterOffer.rev_split_label_pct : revSplit}% LABEL` },
+                    { label: 'TERM', value: `${acceptedViaCounter && counterOffer ? counterOffer.term_months : term} MONTHS` },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 10px', background: 'var(--bg-tile)' }}>
+                      <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{label}</span>
+                      <span className="tag" style={{ color: 'var(--lime)', fontSize: 9 }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => router.push('/dashboard')} style={{
+                  width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '12px',
+                  border: '2px solid var(--lime)', color: 'var(--lime)',
+                  background: 'rgba(200,255,58,0.08)', cursor: 'pointer', letterSpacing: 1,
+                }}>TO THE ROSTER →</button>
+              </div>
+
+            ) : negPhase === 'rejected' ? (
+              /* ── REJECTED / COOLING OFF ── */
+              <div style={{ padding: '4px 0' }}>
+                <div className="tag" style={{ color: 'var(--rose)', fontSize: 9, letterSpacing: 2, marginBottom: 16 }}>
+                  {rejectionType === 'cooldown' ? 'NOT NOW' : rejectionType === 'round2' ? 'TALKS BROKE DOWN' : 'OFFER DECLINED'}
+                </div>
+                <div className="display" style={{ fontSize: 40, color: 'var(--ink-hi)', lineHeight: 0.85, marginBottom: 20 }}>
+                  {artist.name}
+                </div>
+
+                {/* Artist quote */}
+                <div style={{ padding: '14px 16px', background: 'rgba(255,70,70,0.04)', border: '1px solid rgba(255,70,70,0.25)', marginBottom: 20 }}>
+                  <div style={{ color: 'var(--ink-hi)', fontSize: 13, lineHeight: 1.65, fontStyle: 'italic', marginBottom: 8 }}>
+                    &ldquo;{artistVoice(artist.tier, rejectionType === 'cooldown' ? 'cooling_off' : rejectionType === 'round2' ? 'rejected_round2' : 'rejected_outright')}&rdquo;
+                  </div>
+                  <div className="tag" style={{ color: 'var(--rose)', fontSize: 9 }}>— {artist.name}</div>
+                </div>
+
+                {coolingOffUntil && (
+                  <div style={{ padding: '8px 12px', background: 'var(--bg-tile)', border: '1px solid var(--line)', marginBottom: 20 }}>
+                    <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 3 }}>AVAILABLE AGAIN</div>
+                    <div style={{ color: 'var(--ink-mid)', fontSize: 12 }}>
+                      {coolingOffUntil} · Other labels can still sign them in the meantime.
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={() => { setShowModal(false); resetModal() }} style={{
+                  width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
+                  border: '1px solid var(--line)', color: 'var(--ink-low)', background: 'transparent', cursor: 'pointer',
+                }}>CLOSE</button>
+              </div>
+
+            ) : negPhase === 'countered' && counterOffer ? (
+              /* ── COUNTERED ── */
+              <div style={{ padding: '4px 0' }}>
+                <div className="tag" style={{ color: 'var(--amber)', fontSize: 9, letterSpacing: 2, marginBottom: 16 }}>
+                  RESPONSE FROM {artist.name.toUpperCase()}
+                </div>
+
+                {/* Artist quote */}
+                <div style={{ padding: '14px 16px', background: 'rgba(255,176,32,0.04)', border: '1px solid rgba(255,176,32,0.3)', marginBottom: 20 }}>
+                  <div style={{ color: 'var(--ink-hi)', fontSize: 13, lineHeight: 1.65, fontStyle: 'italic', marginBottom: 8 }}>
+                    &ldquo;{artistVoice(artist.tier, 'countered')}&rdquo;
+                  </div>
+                  <div className="tag" style={{ color: 'var(--amber)', fontSize: 9 }}>— {artist.name}</div>
+                </div>
+
+                {/* Counter terms diff */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                  {([
+                    {
+                      label: 'SIGNING BONUS',
+                      prev: fmtUSD(originalOffer?.bonus ?? bonus),
+                      next: fmtUSD(counterOffer.bonus),
+                      changed: counterOffer.bonus !== (originalOffer?.bonus ?? bonus),
+                    },
+                    {
+                      label: 'SPLIT',
+                      prev: `${100 - (originalOffer?.rev_split_label_pct ?? revSplit)}% / ${originalOffer?.rev_split_label_pct ?? revSplit}%`,
+                      next: `${100 - counterOffer.rev_split_label_pct}% / ${counterOffer.rev_split_label_pct}%`,
+                      changed: counterOffer.rev_split_label_pct !== (originalOffer?.rev_split_label_pct ?? revSplit),
+                    },
+                    {
+                      label: 'TERM',
+                      prev: `${originalOffer?.term_months ?? term} mo`,
+                      next: `${counterOffer.term_months} mo`,
+                      changed: counterOffer.term_months !== (originalOffer?.term_months ?? term),
+                    },
+                  ] as { label: string; prev: string; next: string; changed: boolean }[]).map(({ label, prev, next, changed }) => (
+                    <div key={label} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '6px 12px',
+                      background: changed ? 'rgba(255,176,32,0.08)' : 'var(--bg-tile)',
+                      border: `1px solid ${changed ? 'var(--amber)' : 'var(--line)'}`,
+                    }}>
+                      <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{label}</span>
+                      <span className="tag" style={{ fontSize: 10 }}>
+                        {changed ? (
+                          <><span style={{ color: 'var(--ink-low)', textDecoration: 'line-through', marginRight: 8 }}>{prev}</span><span style={{ color: 'var(--amber)' }}>{next}</span></>
+                        ) : (
+                          <span style={{ color: 'var(--ink-mid)' }}>{next}</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* The tell */}
+                {originalOffer && (
+                  <div style={{ padding: '7px 12px', marginBottom: 16, borderLeft: '2px solid var(--amber)' }}>
+                    <div style={{ color: 'var(--amber)', fontSize: 11, fontStyle: 'italic' }}>
+                      {counterTell(originalOffer, counterOffer)}
+                    </div>
+                  </div>
+                )}
+
+                {submitError && <div className="tag" style={{ color: 'var(--rose)', fontSize: 9, marginBottom: 8 }}>{submitError}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setShowModal(false); resetModal() }} style={{
+                    flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
+                    border: '1px solid var(--line)', color: 'var(--ink-low)', background: 'transparent', cursor: 'pointer',
+                  }}>WALK AWAY</button>
+                  <button onClick={() => { setBonus(counterOffer.bonus); setRevSplit(counterOffer.rev_split_label_pct); setTerm(counterOffer.term_months); setNegPhase('idle') }} style={{
+                    flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
+                    border: '2px solid var(--cyan)', color: 'var(--cyan)',
+                    background: 'rgba(0,210,255,0.08)', cursor: 'pointer',
+                  }}>MODIFY →</button>
+                  <button onClick={acceptCounter} disabled={submitting} style={{
+                    flex: 2, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
+                    border: '2px solid var(--amber)', color: 'var(--amber)',
+                    background: 'rgba(255,176,32,0.1)', cursor: submitting ? 'not-allowed' : 'pointer',
+                    opacity: submitting ? 0.5 : 1,
+                  }}>{submitting ? 'SIGNING...' : 'ACCEPT COUNTER'}</button>
+                </div>
+              </div>
+
+            ) : (
+              /* ── OFFER FORM (round 1 or round 2) ── */
+              <>
+                <div style={{ marginBottom: negRound === 2 ? 8 : 20 }}>
+                  <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, letterSpacing: 2, marginBottom: 6 }}>
+                    {negRound === 2 ? 'FINAL OFFER' : 'MAKE AN OFFER'}
+                  </div>
+                  <div className="display" style={{ fontSize: 28, color: 'var(--ink-hi)', lineHeight: 0.9 }}>
+                    {artist.name}
+                  </div>
+                </div>
+                {negRound === 2 && (
+                  <div style={{ padding: '8px 12px', background: 'rgba(255,176,32,0.06)', border: '1px solid var(--amber)', marginBottom: 16 }}>
+                    <div style={{ color: 'var(--amber)', fontSize: 12 }}>
+                      Round two. This is your last shot — if this doesn&apos;t land, the deal dies.
+                    </div>
+                  </div>
+                )}
+
+                {/* Signing bonus */}
+                <div style={{ marginBottom: 16 }}>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>SIGNING BONUS</div>
+                  {bonusRange && (
+                    <input type="range" min={bonusRange[0]} max={bonusRange[1]}
+                      value={bonus} onChange={e => setBonus(Number(e.target.value))}
+                      style={{ width: '100%', marginBottom: 6, accentColor: 'var(--lime)' }}
+                    />
+                  )}
+                  <input type="number" value={bonus}
+                    min={bonusRange?.[0] ?? 0} max={bonusRange?.[1] ?? 999_999}
+                    onChange={e => setBonus(Number(e.target.value))}
+                    style={{
+                      background: 'var(--bg-tile)', border: '1px solid var(--line)',
+                      color: 'var(--amber)', fontFamily: 'Jersey 25, monospace', fontSize: 24,
+                      padding: '6px 10px', width: '100%', outline: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Rev split */}
+                <div style={{ marginBottom: 16 }}>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>
+                    SPLIT — ARTIST {100 - revSplit}% / LABEL {revSplit}%
+                  </div>
+                  <input type="range" min={20} max={40} value={revSplit}
+                    onChange={e => setRevSplit(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--cyan)' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>80/20 artist-friendly</span>
+                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>60/40 label-heavy</span>
+                  </div>
+                </div>
+
+                {/* Term */}
+                <div style={{ marginBottom: 16 }}>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>CONTRACT TERM</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {([3, 6, 12] as const).map(t => (
+                      <button key={t} onClick={() => setTerm(t)} style={{
+                        flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '8px',
+                        border: `2px solid ${term === t ? 'var(--lime)' : 'var(--line)'}`,
+                        color: term === t ? 'var(--lime)' : 'var(--ink-mid)',
+                        background: term === t ? 'rgba(200,255,58,0.08)' : 'transparent', cursor: 'pointer',
+                      }}>{t} MO</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live likelihood indicator — §4.5 */}
+                {indicator && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 12px', marginBottom: 14,
+                    background: indicator.color === 'green' ? 'rgba(200,255,58,0.06)' : indicator.color === 'red' ? 'rgba(255,70,70,0.06)' : 'rgba(255,176,32,0.06)',
+                    border: `1px solid ${indicator.color === 'green' ? 'var(--lime)' : indicator.color === 'red' ? 'var(--rose)' : 'var(--amber)'}`,
+                  }}>
+                    <div>
+                      <div className="tag" style={{
+                        color: indicator.color === 'green' ? 'var(--lime)' : indicator.color === 'red' ? 'var(--rose)' : 'var(--amber)',
+                        fontSize: 9,
+                      }}>
+                        ● {indicator.label}
+                      </div>
+                      {indicator.hint && (
+                        <div style={{ color: 'var(--ink-low)', fontSize: 10, marginTop: 3 }}>{indicator.hint}</div>
+                      )}
+                    </div>
+                    {!scoutReport && (
+                      <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>PUBLIC SIGNAL ONLY</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Deal preview */}
+                <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--line)', padding: 12, marginBottom: 16 }}>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 8 }}>DEAL PREVIEW</div>
+                  {[
+                    { label: 'EST. WEEKLY ROYALTIES', value: fmtUSD(estWeekly), color: 'var(--lime)' },
+                    { label: 'TREASURY AFTER SIGNING', value: fmtUSD(treasuryAfter), color: treasuryAfter < 0 ? 'var(--rose)' : 'var(--amber)' },
+                    { label: 'BREAK-EVEN', value: breakEvenWeeks ? `${breakEvenWeeks} WEEKS` : 'N/A', color: 'var(--cyan)' },
+                    { label: `EST. TOTAL (${term} MO)`, value: fmtUSD(estTotal), color: 'var(--violet)' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{label}</span>
+                      <span className="tag" style={{ color, fontSize: 10 }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {submitError && <div className="tag" style={{ color: 'var(--rose)', fontSize: 9, marginBottom: 8 }}>{submitError}</div>}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => { setShowModal(false); resetModal() }} style={{
+                    flex: 1, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
+                    border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent', cursor: 'pointer',
+                  }}>CANCEL</button>
+                  <button onClick={() => sendOffer()} disabled={submitting || treasuryAfter < 0} style={{
+                    flex: 2, fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px',
+                    border: '2px solid var(--lime)', color: 'var(--lime)',
+                    background: 'rgba(200,255,58,0.1)', cursor: submitting ? 'not-allowed' : 'pointer',
+                    opacity: submitting || treasuryAfter < 0 ? 0.5 : 1,
+                  }}>
+                    {submitting ? 'SENDING...' : negRound === 2 ? 'SEND FINAL OFFER →' : 'SEND OFFER →'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

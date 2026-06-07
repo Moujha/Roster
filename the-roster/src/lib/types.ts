@@ -89,3 +89,16 @@ export interface Scout {
   completed_at: string | null
   is_discovery: boolean
 }
+
+export interface Negotiation {
+  id: string
+  label_id: string
+  artist_id: string
+  round: number
+  status: 'countered' | 'accepted' | 'rejected' | 'cooling_off'
+  offer: { bonus: number; rev_split_label_pct: number; term_months: 3 | 6 | 12 }
+  counter_offer: { bonus: number; rev_split_label_pct: number; term_months: 3 | 6 | 12 } | null
+  cooling_off_until: string | null
+  created_at: string
+  updated_at: string
+}

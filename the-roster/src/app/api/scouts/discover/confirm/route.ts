@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { scoutDurationWeeks } from '@/lib/scout-helpers'
 import { getSpotifyToken } from '@/lib/spotify'
+import { generatePriorityWeights, generateTargetScore } from '@/lib/negotiation'
 import type { Tier } from '@/lib/types'
 
 function popularityToTier(popularity: number): Tier {
@@ -81,9 +82,16 @@ export async function POST(request: Request) {
     const tier = popularityToTier(spotifyArtist.popularity ?? 0)
     const genre = (spotifyArtist.genres?.[0] as string | undefined) ?? null
 
+    const weights = generatePriorityWeights(tier)
     const { data: newArtist, error: insertArtistErr } = await createServiceClient()
       .from('artists')
-      .insert({ spotify_id, name: spotifyArtist.name, genre, country: null, tier })
+      .insert({
+        spotify_id, name: spotifyArtist.name, genre, country: null, tier,
+        priority_money: weights.money,
+        priority_freedom: weights.freedom,
+        priority_commitment: weights.commitment,
+        negotiation_target: generateTargetScore(),
+      })
       .select('id, tier, country, genre')
       .single()
 

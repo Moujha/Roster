@@ -33,8 +33,8 @@ export async function POST(request: Request) {
   // Validate inputs
   if (![3, 6, 12].includes(term_months))
     return Response.json({ error: 'term_months must be 3, 6, or 12' }, { status: 400 })
-  if (rev_split_label_pct < 10 || rev_split_label_pct > 50)
-    return Response.json({ error: 'rev_split_label_pct must be 10-50' }, { status: 400 })
+  if (rev_split_label_pct < 20 || rev_split_label_pct > 40)
+    return Response.json({ error: 'rev_split_label_pct must be 20–40' }, { status: 400 })
   if (typeof signing_bonus !== 'number' || signing_bonus <= 0)
     return Response.json({ error: 'signing_bonus must be a positive number' }, { status: 400 })
 

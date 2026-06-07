@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { notFound } from 'next/navigation'
 import ArtistProfileClient from './client'
 import type { Artist, ArtistStats, Label, Scout, Tier } from '@/lib/types'
 import { classifyPattern, estimateBonus, momentumConfidence } from '@/lib/scout-helpers'
+import { negotiationHint } from '@/lib/negotiation'
 
 export default async function ArtistProfilePage({
   params,
@@ -43,11 +45,29 @@ export default async function ArtistProfilePage({
   const stats14 = (stats14Res.data ?? []) as { daily_streams_top10: number | null }[]
   const activeScoutCount = activeScoutCountRes.count ?? 0
 
+  // Read hidden negotiation weights via service role for completed scout hint
+  let negHint: string | null = null
+  if (scout?.completed_at) {
+    const { data: artistWeights } = await createServiceClient()
+      .from('artists')
+      .select('priority_money, priority_freedom, priority_commitment')
+      .eq('id', artist.id)
+      .single()
+    if (artistWeights) {
+      negHint = negotiationHint({
+        money:      artistWeights.priority_money ?? 0.34,
+        freedom:    artistWeights.priority_freedom ?? 0.33,
+        commitment: artistWeights.priority_commitment ?? 0.33,
+      })
+    }
+  }
+
   const scoutReport = scout?.completed_at && stats
     ? {
         pattern: classifyPattern(stats14),
         bonusEstimate: estimateBonus(artist.tier as Tier, stats.monthly_listeners ?? 0),
         momentum: momentumConfidence(stats.listener_growth_28d ?? null),
+        negotiationHint: negHint,
       }
     : null
 
