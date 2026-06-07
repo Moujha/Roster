@@ -70,10 +70,10 @@ async function getOnRamps(userId: string) {
   let breaking: OnRampSection | null = null
   const { data: vStats } = await supabase.from('artist_stats_daily')
     .select('artist_id, stream_velocity_7d').eq('date', statsDate)
-    .not('stream_velocity_7d', 'is', null).order('stream_velocity_7d', { ascending: false }).limit(5)
+    .not('stream_velocity_7d', 'is', null).order('stream_velocity_7d', { ascending: false }).limit(30)
   if (vStats?.length) {
     const { data: artists } = await supabase.from('artists').select('*')
-      .in('id', vStats.map(s => s.artist_id)).neq('tier', 'major')
+      .in('id', vStats.map(s => s.artist_id)).neq('tier', 'major').limit(5)
     if (artists?.length) {
       breaking = {
         artists: artists as Artist[],
@@ -86,10 +86,10 @@ async function getOnRamps(userId: string) {
   if (!breaking) {
     const { data: lStats } = await supabase.from('artist_stats_daily')
       .select('artist_id, monthly_listeners').eq('date', statsDate)
-      .not('monthly_listeners', 'is', null).order('monthly_listeners', { ascending: false }).limit(8)
+      .not('monthly_listeners', 'is', null).order('monthly_listeners', { ascending: false }).limit(50)
     if (lStats?.length) {
       const { data: artists } = await supabase.from('artists').select('*')
-        .in('id', lStats.map(s => s.artist_id)).neq('tier', 'major')
+        .in('id', lStats.map(s => s.artist_id)).neq('tier', 'major').limit(8)
       if (artists?.length) {
         breaking = {
           artists: artists as Artist[],
@@ -129,9 +129,10 @@ async function getOnRamps(userId: string) {
         const { data: lStats } = await supabase.from('artist_stats_daily')
           .select('artist_id, monthly_listeners').eq('date', statsDate)
           .in('artist_id', ids).not('monthly_listeners', 'is', null)
-          .order('monthly_listeners', { ascending: false }).limit(5)
+          .order('monthly_listeners', { ascending: false }).limit(50)
         if (lStats?.length) {
-          const { data: artists } = await supabase.from('artists').select('*').in('id', lStats.map(s => s.artist_id))
+          const { data: artists } = await supabase.from('artists').select('*')
+            .in('id', lStats.map(s => s.artist_id)).neq('tier', 'major').limit(5)
           if (artists?.length) {
             genre = {
               artists: artists as Artist[],
@@ -156,9 +157,10 @@ async function getOnRamps(userId: string) {
       const { data: vRStats } = await supabase.from('artist_stats_daily')
         .select('artist_id, stream_velocity_7d').eq('date', statsDate)
         .in('artist_id', ids).not('stream_velocity_7d', 'is', null)
-        .order('stream_velocity_7d', { ascending: false }).limit(5)
+        .order('stream_velocity_7d', { ascending: false }).limit(30)
       if (vRStats?.length) {
-        const { data: artists } = await supabase.from('artists').select('*').in('id', vRStats.map(s => s.artist_id))
+        const { data: artists } = await supabase.from('artists').select('*')
+          .in('id', vRStats.map(s => s.artist_id)).neq('tier', 'major').limit(5)
         if (artists?.length) {
           regional = {
             artists: artists as Artist[],
@@ -172,9 +174,10 @@ async function getOnRamps(userId: string) {
         const { data: lRStats } = await supabase.from('artist_stats_daily')
           .select('artist_id, monthly_listeners').eq('date', statsDate)
           .in('artist_id', ids).not('monthly_listeners', 'is', null)
-          .order('monthly_listeners', { ascending: false }).limit(5)
+          .order('monthly_listeners', { ascending: false }).limit(50)
         if (lRStats?.length) {
-          const { data: artists } = await supabase.from('artists').select('*').in('id', lRStats.map(s => s.artist_id))
+          const { data: artists } = await supabase.from('artists').select('*')
+            .in('id', lRStats.map(s => s.artist_id)).neq('tier', 'major').limit(5)
           if (artists?.length) {
             regional = {
               artists: artists as Artist[],
