@@ -5,6 +5,8 @@ import ArtistProfileClient from './client'
 import type { Artist, ArtistStats, Label, Scout, Tier } from '@/lib/types'
 import { classifyPattern, estimateBonus, momentumConfidence } from '@/lib/scout-helpers'
 import { negotiationHint } from '@/lib/negotiation'
+import { fetchSpotifyArtistData } from '@/lib/spotify'
+import type { SpotifyEnrichment } from '@/lib/spotify'
 
 export default async function ArtistProfilePage({
   params,
@@ -71,9 +73,11 @@ export default async function ArtistProfilePage({
       }
     : null
 
-  const { data: activeContracts } = await supabase
-    .from('contracts').select('id', { count: 'exact', head: false })
-    .eq('label_id', user.id).eq('status', 'active')
+  const [activeContractsRes, spotifyData] = await Promise.all([
+    supabase.from('contracts').select('id', { count: 'exact', head: false })
+      .eq('label_id', user.id).eq('status', 'active'),
+    fetchSpotifyArtistData(spotifyId),
+  ])
 
   return (
     <ArtistProfileClient
@@ -83,10 +87,11 @@ export default async function ArtistProfilePage({
       signedByCount={countRes.count ?? 0}
       undergroundSignal={artist.tier === 'underground'}
       label={labelRes.data as Label}
-      rosterCount={activeContracts?.length ?? 0}
+      rosterCount={activeContractsRes.data?.length ?? 0}
       scout={scout}
       activeScoutCount={activeScoutCount}
       scoutReport={scoutReport}
+      spotifyData={spotifyData as SpotifyEnrichment | null}
     />
   )
 }

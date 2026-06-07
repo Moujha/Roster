@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Artist, ArtistStats, Label, Scout } from '@/lib/types'
+import type { SpotifyEnrichment, SpotifyRelease } from '@/lib/spotify'
 
 const TIER_COLORS: Record<string, string> = {
   underground: 'var(--violet)', emerging: 'var(--lime)',
@@ -177,7 +178,7 @@ type CounterOffer = {
 
 export default function ArtistProfileClient({
   artist, stats, spark, signedByCount, undergroundSignal, label, rosterCount,
-  scout, activeScoutCount, scoutReport,
+  scout, activeScoutCount, scoutReport, spotifyData,
 }: {
   artist: Artist
   stats: ArtistStats | null
@@ -189,6 +190,7 @@ export default function ArtistProfileClient({
   scout: Scout | null
   activeScoutCount: number
   scoutReport: ScoutReport
+  spotifyData: SpotifyEnrichment | null
 }) {
   const router = useRouter()
   const tierColor = TIER_COLORS[artist.tier] ?? 'var(--ink-mid)'
@@ -345,31 +347,78 @@ export default function ArtistProfileClient({
       </Link>
 
       {/* Artist header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 24 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 24 }}>
+
+        {/* Photo or placeholder */}
+        {spotifyData?.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={spotifyData.image_url}
+            alt={artist.name}
+            referrerPolicy="no-referrer"
+            style={{
+              width: 120, height: 120, objectFit: 'cover', flexShrink: 0,
+              border: `2px solid ${tierColor}`,
+            }}
+          />
+        ) : (
+          <div style={{
+            width: 120, height: 120, flexShrink: 0,
+            background: `${tierColor}18`, border: `2px solid ${tierColor}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontFamily: 'Silkscreen, monospace', fontSize: 32, color: tierColor }}>
+              {artist.name.slice(0, 2).toUpperCase()}
+            </span>
+          </div>
+        )}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
             <span className="tag" style={{ color: tierColor, border: `1px solid ${tierColor}`, padding: '2px 7px', fontSize: 9, background: `${tierColor}18` }}>
               {artist.tier.toUpperCase()}
             </span>
-            {artist.country && <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>{artist.country}</span>}
+            {artist.country && (
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, border: '1px solid var(--line)', padding: '2px 6px' }}>
+                {artist.country}
+              </span>
+            )}
+            {artist.genre && (
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, border: '1px solid var(--line)', padding: '2px 6px' }}>
+                {artist.genre.toUpperCase()}
+              </span>
+            )}
           </div>
-          <div className="display" style={{ fontSize: 48, color: 'var(--ink-hi)', lineHeight: 0.85 }}>{artist.name}</div>
-          {artist.genre && <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginTop: 8 }}>{artist.genre.toUpperCase()}</div>}
-        </div>
+          <div className="display" style={{ fontSize: 42, color: 'var(--ink-hi)', lineHeight: 0.85, marginBottom: 12 }}>{artist.name}</div>
 
-        {/* Momentum ring */}
-        <div style={{ textAlign: 'center' }}>
+          {/* Momentum or low-signal */}
           {undergroundSignal ? (
-            <div style={{ background: 'var(--bg-tile)', border: '2px solid var(--line)', padding: '14px 18px' }}>
-              <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>LOW SIGNAL</div>
-              <div style={{ color: 'var(--ink-mid)', fontSize: 11, marginTop: 4, maxWidth: 120 }}>
-                Not enough data for a reliable score
-              </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'var(--bg-tile)', border: '1px solid var(--line)' }}>
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>LOW SIGNAL</span>
+              <span style={{ color: 'var(--ink-mid)', fontSize: 10 }}>Not enough data for a reliable score</span>
             </div>
           ) : stats?.momentum_score != null ? (
-            <div>
-              <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>MOMENTUM</div>
-              <MomentumRing score={Math.round(stats.momentum_score)} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div>
+                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>MOMENTUM</div>
+                <MomentumRing score={Math.round(stats.momentum_score)} />
+              </div>
+              {stats.stream_velocity_7d != null && (
+                <div>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>7D VELOCITY</div>
+                  <div className="display" style={{ fontSize: 22, color: stats.stream_velocity_7d >= 0 ? 'var(--lime)' : 'var(--rose)', lineHeight: 1 }}>
+                    {stats.stream_velocity_7d >= 0 ? '+' : ''}{stats.stream_velocity_7d.toFixed(1)}%
+                  </div>
+                </div>
+              )}
+              {stats.catalog_depth_score != null && (
+                <div>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>CATALOG DEPTH</div>
+                  <div className="display" style={{ fontSize: 22, color: 'var(--cyan)', lineHeight: 1 }}>
+                    {stats.catalog_depth_score.toFixed(0)}
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -403,7 +452,7 @@ export default function ArtistProfileClient({
       </div>
 
       {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <button
           onClick={() => setShowModal(true)}
           disabled={!canSign}
@@ -418,6 +467,20 @@ export default function ArtistProfileClient({
         >
           {rosterCount >= 5 ? 'ROSTER FULL' : artist.tier === 'major' ? 'NOT SIGNABLE' : 'MAKE AN OFFER'}
         </button>
+        {spotifyData?.spotify_url && (
+          <a
+            href={spotifyData.spotify_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 16px',
+              border: '1px solid #1DB954', color: '#1DB954', background: 'rgba(29,185,84,0.08)',
+              textDecoration: 'none', letterSpacing: 1, display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            ▶ SPOTIFY
+          </a>
+        )}
         <button
           disabled
           title="Phase 4 feature"
@@ -430,6 +493,59 @@ export default function ArtistProfileClient({
           + WATCHLIST
         </button>
       </div>
+
+      {/* Recent releases */}
+      {spotifyData?.releases && spotifyData.releases.length > 0 && (
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line-soft)' }}>
+          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 12 }}>DISCOGRAPHY</div>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+            {spotifyData.releases.map((rel: SpotifyRelease, i: number) => (
+              <a
+                key={i}
+                href={rel.spotify_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ textDecoration: 'none', flexShrink: 0, width: 110 }}
+              >
+                <div style={{
+                  width: 110, height: 110, overflow: 'hidden',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg-tile)',
+                  marginBottom: 6,
+                }}>
+                  {rel.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={rel.image_url}
+                      alt={rel.name}
+                      referrerPolicy="no-referrer"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontFamily: 'Silkscreen, monospace', fontSize: 22, color: 'var(--ink-low)' }}>♪</span>
+                    </div>
+                  )}
+                </div>
+                <div style={{
+                  fontSize: 10, color: 'var(--ink-hi)', fontWeight: 600,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {rel.name}
+                </div>
+                <div style={{ display: 'flex', gap: 4, marginTop: 2, alignItems: 'center' }}>
+                  <span className="tag" style={{ fontSize: 8, color: 'var(--ink-low)' }}>
+                    {rel.album_type === 'single' ? 'SINGLE' : rel.album_type === 'compilation' ? 'COMP.' : 'ALBUM'}
+                  </span>
+                  <span className="tag" style={{ fontSize: 8, color: 'var(--ink-low)' }}>
+                    {rel.release_date.slice(0, 4)}
+                  </span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* SCOUT section */}
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line-soft)' }}>
