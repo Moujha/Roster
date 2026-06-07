@@ -4,10 +4,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
-  { icon: '◼', label: 'LABEL HQ',  href: '/dashboard' },
-  { icon: '◆', label: 'SEARCH',    href: '/search' },
-  { icon: '$', label: 'CONTRACTS', href: '/contracts' },
-  { icon: '◉', label: 'HISTORY',   href: '/history' },
+  { icon: '◼', label: 'LABEL HQ',    href: '/dashboard' },
+  { icon: '◆', label: 'SEARCH',      href: '/search' },
+  { icon: '$', label: 'CONTRACTS',   href: '/contracts' },
+  { icon: '◉', label: 'HISTORY',     href: '/history' },
+  { icon: '▲', label: 'LEADERBOARD', href: '/leaderboard' },
 ]
 
 function repTier(rep: number) {
