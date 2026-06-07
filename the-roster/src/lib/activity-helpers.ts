@@ -15,6 +15,10 @@ export function describeEvent(e: LabelEvent): string {
       return `${e.artist_name} reached ${p.new_tier} tier`
     case 'scout_completed':
       return `Scout complete — ${e.artist_name}`
+    case 'release_boost': {
+      const tier = p.spend_tier as string
+      return `Release boost activated — ${e.artist_name} · ${tier}`
+    }
     default:
       return e.artist_name
   }

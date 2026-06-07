@@ -96,5 +96,9 @@ export async function DELETE(
     },
   })
 
+  // Reputation −20 for early drop, floor at 0
+  const { data: lbl } = await supabase.from('labels').select('reputation').eq('id', user.id).single()
+  await supabase.from('labels').update({ reputation: Math.max(0, (lbl?.reputation ?? 0) - 20) }).eq('id', user.id)
+
   return Response.json({ ok: true, penalty })
 }

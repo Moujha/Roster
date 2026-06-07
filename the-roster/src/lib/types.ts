@@ -12,6 +12,7 @@ export interface Label {
   genre_2: string | null
   country: string | null
   treasury: number
+  reputation: number
   created_at: string
 }
 
