@@ -5,6 +5,8 @@ import type { LeaderboardRow } from '../leaderboard/client'
 import { computeWeeklyRoyalties } from '@/lib/royalty'
 import { describeEvent, relativeTime } from '@/lib/activity-helpers'
 import CountrySetup from './country-setup'
+import WeeklyReveal from './weekly-reveal'
+import ContractExpiryScreen from './contract-expiry-screen'
 
 type ContractRow = Contract & { artists: { name: string; tier: string; spotify_id: string } }
 type ScoutRow = Scout & { artists: { name: string; tier: string; spotify_id: string } }
@@ -84,10 +86,21 @@ async function getData() {
   const expired = contracts.filter(c => c.status === 'expired')
   const activeIds = active.map(c => c.id)
   const activeArtistIds = active.map(c => c.artist_id)
+  const expiredArtistIds = expired.map(c => c.artist_id)
   const today = new Date().toISOString().slice(0, 10)
 
+  // ISO date of the most recent Sunday (or today if Sunday) — used for weekly reveal
+  const weekEnd = (() => {
+    const d = new Date()
+    const day = d.getUTCDay() // 0=Sun…6=Sat
+    const offset = day === 0 ? 0 : -day
+    const sunday = new Date(d)
+    sunday.setUTCDate(d.getUTCDate() + offset)
+    return sunday.toISOString().slice(0, 10)
+  })()
+
   // ── Pass 2: dev state + discovery + leaderboard ─────────────────────────────
-  const [allocsRes, releaseAmpsRes, activeStatsRes, discoveryRes, leaderboardRes] = await Promise.all([
+  const [allocsRes, releaseAmpsRes, activeStatsRes, sparkRes, discoveryRes, leaderboardRes, weeklyRoyaltyRes, expiredStatsRes] = await Promise.all([
     activeIds.length
       ? supabase.from('dev_allocations').select('*').in('contract_id', activeIds)
       : Promise.resolve({ data: [] as DevAllocation[] }),
@@ -95,8 +108,11 @@ async function getData() {
       ? supabase.from('release_amplifications').select('*').in('contract_id', activeIds).gte('expires_at', today)
       : Promise.resolve({ data: [] as ReleaseAmplification[] }),
     activeArtistIds.length && latestDate
-      ? supabase.from('artist_stats_daily').select('artist_id, monthly_listeners').in('artist_id', activeArtistIds).eq('date', latestDate)
-      : Promise.resolve({ data: [] as { artist_id: string; monthly_listeners: number | null }[] }),
+      ? supabase.from('artist_stats_daily').select('artist_id, monthly_listeners, stream_velocity_7d').in('artist_id', activeArtistIds).eq('date', latestDate)
+      : Promise.resolve({ data: [] as { artist_id: string; monthly_listeners: number | null; stream_velocity_7d: number | null }[] }),
+    activeArtistIds.length
+      ? supabase.from('artist_stats_daily').select('artist_id, date, daily_streams_top10').in('artist_id', activeArtistIds).order('date', { ascending: false }).limit(activeArtistIds.length * 7)
+      : Promise.resolve({ data: [] as { artist_id: string; date: string; daily_streams_top10: number | null }[] }),
     latestDate
       ? supabase.from('artist_stats_daily')
           .select('artist_id, stream_velocity_7d, monthly_listeners, momentum_score, artists!inner(id, name, tier, genre, country, spotify_id)')
@@ -105,6 +121,13 @@ async function getData() {
           .limit(80)
       : Promise.resolve({ data: [] }),
     supabase.rpc('get_leaderboard'),
+    supabase.from('label_events').select('*')
+      .eq('label_id', user.id).eq('event_type', 'royalty_paid')
+      .gte('created_at', weekEnd).order('created_at', { ascending: false }),
+    expiredArtistIds.length && latestDate
+      ? supabase.from('artist_stats_daily').select('artist_id, monthly_listeners')
+          .in('artist_id', expiredArtistIds).eq('date', latestDate)
+      : Promise.resolve({ data: [] as { artist_id: string; monthly_listeners: number | null }[] }),
   ])
 
   const allocMap = new Map<string, DevAllocation>(
@@ -118,6 +141,24 @@ async function getData() {
       .filter(r => r.monthly_listeners != null)
       .map(r => [r.artist_id, r.monthly_listeners!]),
   )
+
+  const velocityMap = new Map<string, number | null>(
+    ((activeStatsRes.data ?? []) as { artist_id: string; stream_velocity_7d: number | null }[])
+      .map(r => [r.artist_id, r.stream_velocity_7d ?? null]),
+  )
+
+  type SparkRow = { artist_id: string; date: string; daily_streams_top10: number | null }
+  const sparkRaw = (sparkRes.data ?? []) as SparkRow[]
+  const sparkByArtist = new Map<string, SparkRow[]>()
+  for (const row of sparkRaw) {
+    if (!sparkByArtist.has(row.artist_id)) sparkByArtist.set(row.artist_id, [])
+    sparkByArtist.get(row.artist_id)!.push(row)
+  }
+  const sparkMap = new Map<string, (number | null)[]>()
+  for (const [id, rows] of sparkByArtist) {
+    const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date)).slice(-7)
+    sparkMap.set(id, sorted.map(r => r.daily_streams_top10))
+  }
 
   const discoveryRows = (discoveryRes.data ?? []) as unknown as DiscoveryRow[]
   const signedArtistIds = new Set(activeArtistIds)
@@ -149,15 +190,23 @@ async function getData() {
   const completedScouts = scouts.filter(s => s.completed_at)
 
   const leaderboard = (leaderboardRes.data ?? []) as LeaderboardRow[]
+  const weeklyRoyaltyEvents = (weeklyRoyaltyRes.data ?? []) as LabelEvent[]
+
+  const expiredListenerMap = new Map<string, number | null>(
+    ((expiredStatsRes.data ?? []) as { artist_id: string; monthly_listeners: number | null }[])
+      .map(r => [r.artist_id, r.monthly_listeners ?? null]),
+  )
 
   return {
     label, active, expired, events,
     activeScouts, completedScouts,
-    allocMap, releaseMap, listenerMap,
+    allocMap, releaseMap, listenerMap, velocityMap, sparkMap,
     weeklyIncomeEst,
     breaking, genrePicks, regional,
     leaderboard,
     myLabelId: user.id,
+    weeklyRoyaltyEvents, weekEnd,
+    expiredListenerMap,
   }
 }
 
@@ -201,10 +250,12 @@ export default async function DashboardPage() {
   const {
     label, active, expired, events,
     activeScouts, completedScouts,
-    allocMap, releaseMap, listenerMap,
+    allocMap, releaseMap, listenerMap, velocityMap, sparkMap,
     weeklyIncomeEst,
     breaking, genrePicks, regional,
     leaderboard, myLabelId,
+    weeklyRoyaltyEvents, weekEnd,
+    expiredListenerMap,
   } = data
 
   const rep = repTier(label.reputation)
@@ -212,6 +263,22 @@ export default async function DashboardPage() {
 
   return (
     <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 1200 }}>
+      <style>{`
+        @keyframes sparkFill {
+          from { transform: scaleY(0); }
+          to   { transform: scaleY(1); }
+        }
+        @keyframes amberPulse {
+          0%, 100% { border-left-color: rgba(255,176,32,0.3); }
+          50%       { border-left-color: rgba(255,176,32,1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .spark-bar { animation: none !important; transform: scaleY(1) !important; }
+        }
+      `}</style>
+
+      <ContractExpiryScreen contracts={expired} listenerMap={expiredListenerMap} />
+      <WeeklyReveal events={weeklyRoyaltyEvents} weekEnd={weekEnd} />
 
       {/* ── Week progress indicator ────────────────────────────────────────── */}
       {(() => {
@@ -351,11 +418,24 @@ export default async function DashboardPage() {
             </div>
           ) : active.map(c => {
             const wl = weeksLeft(c.end_date)
+            const dl = daysLeft(c.end_date)
             const netPnl = c.royalties_earned - c.signing_bonus - c.dev_spend_total
             const alloc = allocMap.get(c.id)
             const release = releaseMap.get(c.id)
+            const velocity = velocityMap.get(c.artist_id) ?? null
+            const breakingThreshold = c.artists.tier === 'underground' ? 50 : 25
+            const isBreaking = velocity !== null && velocity > breakingThreshold
+            const sparkValues = sparkMap.get(c.artist_id) ?? []
             return (
-              <div key={c.id} style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+              <div key={c.id} style={{
+                padding: '12px 16px',
+                paddingLeft: isBreaking ? 13 : 16,
+                borderBottom: '1px solid var(--line-soft)',
+                ...(isBreaking ? {
+                  borderLeft: '3px solid rgba(255,176,32,0.8)',
+                  animation: 'amberPulse 2s ease-in-out infinite',
+                } : {}),
+              }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 80px 60px auto', gap: 10, alignItems: 'center' }}>
                   <div>
                     <Link href={`/artist/${c.artists.spotify_id}`} style={{ color: 'var(--ink-hi)', textDecoration: 'none', fontSize: 14 }}>{c.artists.name}</Link>
@@ -401,6 +481,41 @@ export default async function DashboardPage() {
                         BOOST {daysLeft(release.expires_at)}d
                       </span>
                     )}
+                  </div>
+                )}
+                {/* Spark line */}
+                {sparkValues.length > 0 && (() => {
+                  const isNegVelocity = velocity !== null && velocity < 0
+                  const barColor = isNegVelocity ? 'var(--rose)' : 'var(--lime)'
+                  const validVals = sparkValues.filter((v): v is number => v != null)
+                  const maxVal = validVals.length > 0 ? Math.max(...validVals) : 0
+                  return (
+                    <div style={{ marginTop: 8, display: 'flex', gap: 2, alignItems: 'flex-end', height: 20 }}>
+                      {sparkValues.map((v, i) => {
+                        const hasData = v != null && maxVal > 0
+                        const heightPct = hasData ? Math.max(0.15, v / maxVal) : 0.3
+                        return (
+                          <div
+                            key={i}
+                            className="spark-bar"
+                            style={{
+                              width: 4,
+                              height: `${Math.round(heightPct * 20)}px`,
+                              background: hasData ? barColor : 'var(--ink-low)',
+                              opacity: hasData ? 1 : 0.3,
+                              transformOrigin: 'bottom',
+                              animation: `sparkFill 300ms ease-out ${i * 40}ms both`,
+                            }}
+                          />
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+                {/* Contract expiry warning */}
+                {dl <= 7 && dl > 0 && (
+                  <div className="tag" style={{ color: 'var(--amber)', fontSize: 8, marginTop: 4 }}>
+                    CONTRACT ENDS IN {dl} DAY{dl !== 1 ? 'S' : ''}
                   </div>
                 )}
               </div>

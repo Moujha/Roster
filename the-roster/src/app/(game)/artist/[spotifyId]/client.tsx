@@ -165,7 +165,7 @@ function generateNarrative(
 }
 
 // §4.5 Live offer likelihood indicator — qualitative only, no numbers
-type IndicatorState = { color: 'green' | 'yellow' | 'red'; label: string; hint: string | null }
+type IndicatorState = { color: 'green' | 'yellow' | 'red'; label: string; hint: string | null; score: number }
 
 function computeIndicator(
   tier: string,
@@ -188,9 +188,9 @@ function computeIndicator(
   const dominantScore = dominant === 'bonus' ? scoreBonus() : dominant === 'split' ? scoreSplit() : scoreTerm()
 
   if (!hasScouted) {
-    if (dominantScore >= 65) return { color: 'green', label: 'LOOKS PROMISING', hint: null }
-    if (dominantScore >= 35) return { color: 'yellow', label: 'HARD TO READ', hint: null }
-    return { color: 'red', label: 'LIKELY MISALIGNED', hint: null }
+    if (dominantScore >= 65) return { color: 'green', label: 'LOOKS PROMISING', hint: null, score: Math.round(dominantScore) }
+    if (dominantScore >= 35) return { color: 'yellow', label: 'HARD TO READ', hint: null, score: Math.round(dominantScore) }
+    return { color: 'red', label: 'LIKELY MISALIGNED', hint: null, score: Math.round(dominantScore) }
   }
 
   // With scout — identify variable from hint text, more precise
@@ -208,11 +208,11 @@ function computeIndicator(
     v === 'bonus' ? 'Bonus may not be landing.' :
     v === 'term' ? 'Term length may be misaligned.' : null
 
-  if (combined >= 75) return { color: 'green', label: 'STRONG MATCH', hint: null }
-  if (combined >= 60) return { color: 'green', label: 'GOOD MATCH', hint: hintVar && hintScore < 70 ? `Consider a slightly more generous ${hintVar === 'split' ? 'split' : hintVar === 'bonus' ? 'bonus' : 'term'}.` : null }
-  if (combined >= 45) return { color: 'yellow', label: 'PARTIAL MATCH', hint: hintLine(hintVar) }
-  if (combined >= 30) return { color: 'yellow', label: 'WEAK SIGNAL', hint: hintLine(hintVar) ?? 'Terms may be misaligned.' }
-  return { color: 'red', label: 'POOR MATCH', hint: 'Terms appear significantly misaligned.' }
+  if (combined >= 75) return { color: 'green', label: 'STRONG MATCH', hint: null, score: Math.round(Math.min(95, combined)) }
+  if (combined >= 60) return { color: 'green', label: 'GOOD MATCH', hint: hintVar && hintScore < 70 ? `Consider a slightly more generous ${hintVar === 'split' ? 'split' : hintVar === 'bonus' ? 'bonus' : 'term'}.` : null, score: Math.round(combined) }
+  if (combined >= 45) return { color: 'yellow', label: 'PARTIAL MATCH', hint: hintLine(hintVar), score: Math.round(combined) }
+  if (combined >= 30) return { color: 'yellow', label: 'WEAK SIGNAL', hint: hintLine(hintVar) ?? 'Terms may be misaligned.', score: Math.round(combined) }
+  return { color: 'red', label: 'POOR MATCH', hint: 'Terms appear significantly misaligned.', score: Math.round(combined) }
 }
 
 function counterTell(original: { bonus: number; rev_split_label_pct: number; term_months: number }, counter: { bonus: number; rev_split_label_pct: number; term_months: number }): string {
@@ -319,15 +319,16 @@ export default function ArtistProfileClient({
     return lines[Math.floor(Math.random() * lines.length)]
   })
 
-  // Live likelihood indicator — debounced, qualitative only
+  // Live likelihood indicator — debounced with jitter, qualitative only
   const [indicator, setIndicator] = useState<IndicatorState | null>(null)
   useEffect(() => {
+    const jitter = Math.random() * 200
     const t = setTimeout(() => {
       setIndicator(computeIndicator(
         artist.tier, bonus, revSplit, term, bonusRange,
         !!scoutReport, scoutReport?.negotiationHint ?? null,
       ))
-    }, 280)
+    }, 400 + jitter)
     return () => clearTimeout(t)
   }, [bonus, revSplit, term]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1027,13 +1028,41 @@ export default function ArtistProfileClient({
                   </div>
                 )}
 
-                {/* Signing bonus */}
+                {/* Revenue split — FIRST */}
+                <div style={{ marginBottom: 20 }}>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 8 }}>REVENUE SPLIT</div>
+                  <input type="range" min={20} max={40} value={revSplit}
+                    onChange={e => setRevSplit(Number(e.target.value))}
+                    style={{ width: '100%', marginBottom: 8, accentColor: 'var(--lime)' }}
+                  />
+                  {/* Live proportion bar */}
+                  <div style={{ display: 'flex', height: 6, overflow: 'hidden', marginBottom: 6 }}>
+                    <div style={{ flex: 100 - revSplit, background: 'var(--lime)', opacity: 0.7, transition: 'flex 120ms ease' }} />
+                    <div style={{ flex: revSplit, background: 'var(--amber)', opacity: 0.5, transition: 'flex 120ms ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span className="tag" style={{ color: 'var(--lime)', fontSize: 10 }}>ARTIST {100 - revSplit}%</span>
+                    <span className="tag" style={{ color: 'var(--amber)', fontSize: 10 }}>LABEL {revSplit}%</span>
+                  </div>
+                  {/* Live weekly income */}
+                  <div style={{
+                    marginTop: 10, padding: '8px 12px', background: 'var(--bg-tile)',
+                    border: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}>
+                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>EST. WEEKLY INCOME</span>
+                    <span className="display" style={{ color: 'var(--lime)', fontSize: 22, lineHeight: 1 }}>
+                      {fmtUSD(estWeekly)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Signing bonus — SECOND */}
                 <div style={{ marginBottom: 16 }}>
                   <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>SIGNING BONUS</div>
                   {bonusRange && (
                     <input type="range" min={bonusRange[0]} max={bonusRange[1]}
                       value={bonus} onChange={e => setBonus(Number(e.target.value))}
-                      style={{ width: '100%', marginBottom: 6, accentColor: 'var(--lime)' }}
+                      style={{ width: '100%', marginBottom: 6, accentColor: 'var(--amber)' }}
                     />
                   )}
                   <input type="number" value={bonus}
@@ -1047,22 +1076,7 @@ export default function ArtistProfileClient({
                   />
                 </div>
 
-                {/* Rev split */}
-                <div style={{ marginBottom: 16 }}>
-                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>
-                    SPLIT — ARTIST {100 - revSplit}% / LABEL {revSplit}%
-                  </div>
-                  <input type="range" min={20} max={40} value={revSplit}
-                    onChange={e => setRevSplit(Number(e.target.value))}
-                    style={{ width: '100%', accentColor: 'var(--cyan)' }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>80/20 artist-friendly</span>
-                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>60/40 label-heavy</span>
-                  </div>
-                </div>
-
-                {/* Term */}
+                {/* Contract term — THIRD */}
                 <div style={{ marginBottom: 16 }}>
                   <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 6 }}>CONTRACT TERM</div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -1077,36 +1091,42 @@ export default function ArtistProfileClient({
                   </div>
                 </div>
 
-                {/* Live likelihood indicator — §4.5 */}
-                {indicator && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 12px', marginBottom: 14,
-                    background: indicator.color === 'green' ? 'rgba(200,255,58,0.06)' : indicator.color === 'red' ? 'rgba(255,70,70,0.06)' : 'rgba(255,176,32,0.06)',
-                    border: `1px solid ${indicator.color === 'green' ? 'var(--lime)' : indicator.color === 'red' ? 'var(--rose)' : 'var(--amber)'}`,
-                  }}>
-                    <div>
-                      <div className="tag" style={{
-                        color: indicator.color === 'green' ? 'var(--lime)' : indicator.color === 'red' ? 'var(--rose)' : 'var(--amber)',
-                        fontSize: 9,
-                      }}>
-                        ● {indicator.label}
+                {/* Likelihood ring — §4.5 */}
+                {indicator && (() => {
+                  const ringColor = indicator.color === 'green' ? 'var(--lime)' : indicator.color === 'red' ? 'var(--rose)' : 'var(--amber)'
+                  const ringBg = indicator.color === 'green' ? 'rgba(200,255,58,0.06)' : indicator.color === 'red' ? 'rgba(255,70,70,0.06)' : 'rgba(255,176,32,0.06)'
+                  const ringBorder = indicator.color === 'green' ? 'var(--lime)' : indicator.color === 'red' ? 'var(--rose)' : 'var(--amber)'
+                  const r = 18, cx = 24, cy = 24, circ = 2 * Math.PI * r
+                  const dash = (indicator.score / 100) * circ
+                  return (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 12px', marginBottom: 14,
+                      background: ringBg, border: `1px solid ${ringBorder}`,
+                    }}>
+                      <svg width="48" height="48" style={{ flexShrink: 0 }}>
+                        <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--bg-tile)" strokeWidth="4" />
+                        <circle cx={cx} cy={cy} r={r} fill="none" stroke={ringColor} strokeWidth="4"
+                          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+                          transform={`rotate(-90 ${cx} ${cy})`} />
+                      </svg>
+                      <div style={{ flex: 1 }}>
+                        <div className="tag" style={{ color: ringColor, fontSize: 9 }}>{indicator.label}</div>
+                        {indicator.hint && (
+                          <div style={{ color: 'var(--ink-low)', fontSize: 10, marginTop: 3 }}>{indicator.hint}</div>
+                        )}
+                        {!scoutReport && (
+                          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginTop: 2 }}>PUBLIC SIGNAL ONLY</div>
+                        )}
                       </div>
-                      {indicator.hint && (
-                        <div style={{ color: 'var(--ink-low)', fontSize: 10, marginTop: 3 }}>{indicator.hint}</div>
-                      )}
                     </div>
-                    {!scoutReport && (
-                      <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>PUBLIC SIGNAL ONLY</div>
-                    )}
-                  </div>
-                )}
+                  )
+                })()}
 
-                {/* Deal preview */}
+                {/* Deal preview — condensed */}
                 <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--line)', padding: 12, marginBottom: 16 }}>
                   <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 8 }}>DEAL PREVIEW</div>
                   {[
-                    { label: 'EST. WEEKLY ROYALTIES', value: fmtUSD(estWeekly), color: 'var(--lime)' },
                     { label: 'TREASURY AFTER SIGNING', value: fmtUSD(treasuryAfter), color: treasuryAfter < 0 ? 'var(--rose)' : 'var(--amber)' },
                     { label: 'BREAK-EVEN', value: breakEvenWeeks ? `${breakEvenWeeks} WEEKS` : 'N/A', color: 'var(--cyan)' },
                     { label: `EST. TOTAL (${term} MO)`, value: fmtUSD(estTotal), color: 'var(--violet)' },
