@@ -193,7 +193,7 @@ async function createContract(
 
   if (error || !contract) return null
 
-  await Promise.all([
+  const ops: unknown[] = [
     supabase.from('labels').update({ treasury: currentTreasury - offer.bonus }).eq('id', labelId),
     supabase.from('label_events').insert({
       label_id: labelId,
@@ -201,13 +201,15 @@ async function createContract(
       artist_name: artist.name,
       payload: { months: offer.term_months, split_pct: offer.rev_split_label_pct, signing_bonus: offer.bonus },
     }),
-  ])
-
+  ]
   if (isResign) {
-    await supabase.from('labels')
-      .update({ reputation: Math.min(1000, currentReputation + 10) })
-      .eq('id', labelId)
+    ops.push(
+      supabase.from('labels')
+        .update({ reputation: Math.min(1000, currentReputation + 10) })
+        .eq('id', labelId)
+    )
   }
+  await Promise.all(ops)
 
   return contract
 }
