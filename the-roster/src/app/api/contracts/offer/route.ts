@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { computeOfferScore, generateCounter } from '@/lib/negotiation'
+import { computeOfferScore, generateCounter, repNegParams } from '@/lib/negotiation'
 import type { PriorityWeights, ContractOffer } from '@/lib/negotiation'
 
 const BONUS_RANGES: Record<string, [number, number]> = {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   // Treasury
   const { data: label } = await supabase
-    .from('labels').select('treasury').eq('id', user.id).single()
+    .from('labels').select('treasury, reputation').eq('id', user.id).single()
   if (!label || label.treasury < bonus)
     return Response.json({ error: 'Insufficient treasury' }, { status: 402 })
 
@@ -83,6 +83,15 @@ export async function POST(request: Request) {
       cooling_off_until: cooling.cooling_off_until,
     }, { status: 409 })
 
+  // Check for prior completed contract with this artist (re-sign detection)
+  const { count: priorCount } = await supabase
+    .from('contracts')
+    .select('*', { count: 'exact', head: true })
+    .eq('label_id', user.id)
+    .eq('artist_id', artist_id)
+    .in('status', ['expired', 'dropped'])
+  const isResign = (priorCount ?? 0) > 0
+
   // Validate negotiation round context
   let round = 1
   if (negotiation_id) {
@@ -101,10 +110,7 @@ export async function POST(request: Request) {
     commitment: artist.priority_commitment ?? 0.33,
   }
   const target = artist.negotiation_target ?? 65
-
-  // Reputation modifier (reputation system not yet built — defaults to New)
-  const targetModifier = 0
-  const counterWindow = 15
+  const { targetModifier, counterWindow } = repNegParams(label.reputation ?? 0)
   const effectiveTarget = target + targetModifier
 
   // Fast-path: accept_counter=true means player accepted the counter's terms directly
@@ -114,7 +120,7 @@ export async function POST(request: Request) {
 
   // --- ACCEPT ---
   if (score >= effectiveTarget) {
-    const contract = await createContract(supabase, user.id, label.treasury, artist, offer)
+    const contract = await createContract(supabase, user.id, label.treasury, label.reputation ?? 0, artist, offer, isResign)
     if (!contract) return Response.json({ error: 'Contract creation failed' }, { status: 500 })
     if (negotiation_id) {
       await supabase.from('negotiations')
@@ -161,8 +167,10 @@ async function createContract(
   supabase: Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>>,
   labelId: string,
   currentTreasury: number,
+  currentReputation: number,
   artist: { id: string; tier: string; name: string },
   offer: ContractOffer,
+  isResign: boolean,
 ) {
   const today = new Date().toISOString().slice(0, 10)
   const endDate = new Date(Date.now() + offer.term_months * 30 * 86400_000).toISOString().slice(0, 10)
@@ -194,6 +202,12 @@ async function createContract(
       payload: { months: offer.term_months, split_pct: offer.rev_split_label_pct, signing_bonus: offer.bonus },
     }),
   ])
+
+  if (isResign) {
+    await supabase.from('labels')
+      .update({ reputation: Math.min(1000, currentReputation + 10) })
+      .eq('id', labelId)
+  }
 
   return contract
 }
