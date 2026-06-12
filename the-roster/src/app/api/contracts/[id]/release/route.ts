@@ -21,41 +21,11 @@ export async function POST(
   if (contract.status !== 'expired')
     return Response.json({ error: 'Can only release expired contracts' }, { status: 400 })
 
+  // The weekly cron already archived this contract to label_history when it expired it.
+  // Just dismiss it from the expired list by changing the status.
   const { error: updateErr } = await supabase
     .from('contracts').update({ status: 'dropped' }).eq('id', id)
   if (updateErr) return Response.json({ error: updateErr.message }, { status: 500 })
-
-  const { data: artist } = await supabase
-    .from('artists')
-    .select('name, tier')
-    .eq('id', contract.artist_id)
-    .single()
-
-  const { data: latestStats } = await supabase
-    .from('artist_stats_daily')
-    .select('monthly_listeners')
-    .eq('artist_id', contract.artist_id)
-    .order('date', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const today = new Date().toISOString().slice(0, 10)
-  const netPnl = contract.royalties_earned - contract.signing_bonus - contract.dev_spend_total
-
-  await supabase.from('label_history').insert({
-    label_id: user.id,
-    contract_id: id,
-    artist_name: artist?.name ?? '',
-    artist_tier: artist?.tier ?? '',
-    listeners_at_signing: contract.baseline_listeners,
-    listeners_at_end: latestStats?.monthly_listeners ?? null,
-    signing_bonus: contract.signing_bonus,
-    total_royalties: contract.royalties_earned,
-    total_dev_spend: contract.dev_spend_total,
-    net_pnl: netPnl,
-    reason: 'natural',
-    completed_at: today,
-  })
 
   return Response.json({ ok: true })
 }
