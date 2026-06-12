@@ -111,6 +111,13 @@ export interface Scout {
   is_discovery: boolean
 }
 
+export interface WatchlistEntry {
+  id: string
+  label_id: string
+  artist_id: string
+  added_at: string
+}
+
 export interface Negotiation {
   id: string
   label_id: string
