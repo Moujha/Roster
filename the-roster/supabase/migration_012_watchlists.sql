@@ -20,3 +20,5 @@ CREATE POLICY "watchlists: own label insert" ON watchlists
 
 CREATE POLICY "watchlists: own label delete" ON watchlists
   FOR DELETE USING (auth.uid() = label_id);
+
+CREATE INDEX ON watchlists (label_id);
