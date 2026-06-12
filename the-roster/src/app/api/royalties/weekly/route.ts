@@ -185,19 +185,20 @@ async function handler(request: Request) {
     const artistTier = artistMap.get(c.artist_id)?.tier ?? 'emerging'
     const breakingThreshold = artistTier === 'underground' ? 50 : 25
     if (velocity !== null && velocity > breakingThreshold) {
+      const artistName = artistMap.get(c.artist_id)?.name ?? 'Unknown'
       const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000).toISOString()
       const { count: recentAlerts } = await supabase
         .from('label_events')
         .select('*', { count: 'exact', head: true })
         .eq('label_id', c.label_id)
         .eq('event_type', 'breaking_alert')
-        .eq('artist_name', artistMap.get(c.artist_id)?.name ?? '')
+        .eq('artist_name', artistName)
         .gte('created_at', sevenDaysAgo)
       if ((recentAlerts ?? 0) === 0) {
         await supabase.from('label_events').insert({
           label_id: c.label_id,
           event_type: 'breaking_alert',
-          artist_name: artistMap.get(c.artist_id)?.name ?? 'Unknown',
+          artist_name: artistName,
           payload: { velocity, threshold: breakingThreshold },
         })
       }
