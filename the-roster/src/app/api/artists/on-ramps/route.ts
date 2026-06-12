@@ -26,7 +26,7 @@ export async function GET() {
     (bStats ?? []).map(s => [s.artist_id, s.stream_velocity_7d])
   )
   const { data: breakingArtists } = bIds.length
-    ? await supabase.from('artists').select('*').in('id', bIds)
+    ? await supabase.from('artists').select('*').in('id', bIds).neq('tier', 'major')
     : { data: [] }
 
   // Genre picks: top 3 by momentum_score for label genres
@@ -39,6 +39,7 @@ export async function GET() {
       .from('artists')
       .select('id')
       .or(orFilter)
+      .neq('tier', 'major')
     if (gArtists?.length) {
       const { data: gStats } = await supabase
         .from('artist_stats_daily')
@@ -67,6 +68,7 @@ export async function GET() {
       .from('artists')
       .select('id')
       .eq('country', label.country)
+      .neq('tier', 'major')
     if (rArtists?.length) {
       const { data: rStats } = await supabase
         .from('artist_stats_daily')
