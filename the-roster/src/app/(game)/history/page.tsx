@@ -9,13 +9,13 @@ const TIER_COLORS: Record<string, string> = {
 
 const EVENT_ICONS: Record<string, string> = {
   royalty_paid: '$', artist_signed: '✍', contract_expired: '✗', tier_up: '↑', scout_completed: '◎',
-  breaking_alert: '⚡',
+  breaking_alert: '⚡', release_boost: '◈',
 }
 
 const EVENT_COLORS: Record<string, string> = {
   royalty_paid: 'var(--lime)', artist_signed: 'var(--cyan)',
   contract_expired: 'var(--rose)', tier_up: 'var(--amber)', scout_completed: 'var(--amber)',
-  breaking_alert: 'var(--amber)',
+  breaking_alert: 'var(--amber)', release_boost: 'var(--violet)',
 }
 
 function fmtUSD(n: number) {
@@ -113,6 +113,14 @@ function EventRow({ event }: { event: LabelEvent }) {
             <div style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>{event.artist_name} is breaking</div>
             <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginTop: 3 }}>
               Stream velocity · +{(p.velocity as number).toFixed(1)}%
+            </div>
+          </>
+        )}
+        {event.event_type === 'release_boost' && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--violet)', fontWeight: 600 }}>Release boost — {event.artist_name}</div>
+            <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginTop: 3 }}>
+              {(p.spend_tier as string)?.toUpperCase()} tier · 14-day amplification
             </div>
           </>
         )}
