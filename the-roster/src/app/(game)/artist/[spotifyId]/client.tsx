@@ -314,7 +314,14 @@ export default function ArtistProfileClient({
   const [acceptedViaCounter, setAcceptedViaCounter] = useState(false)
   const [rejectionType, setRejectionType] = useState<'outright' | 'round2' | 'cooldown'>('outright')
   const [showFirstSignMemo, setShowFirstSignMemo] = useState(false)
+  const [showMomentumTooltip, setShowMomentumTooltip] = useState(false)
   const negRound = negId ? 2 : 1
+
+  useEffect(() => {
+    if (!undergroundSignal && !localStorage.getItem('roster_momentum_tooltip_seen')) {
+      setShowMomentumTooltip(true)
+    }
+  }, [undergroundSignal])
 
   // Waiting interstitial — stores resolved outcome until delay elapses
   const [pendingPhase, setPendingPhase] = useState<NegPhase | null>(null)
@@ -851,11 +858,32 @@ export default function ArtistProfileClient({
                           : '—'}
                       </div>
                     </div>
-                    <div>
+                    <div style={{ position: 'relative' }}>
                       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>MOMENTUM</div>
                       <div className="display" style={{ fontSize: 22, color: undergroundSignal ? 'var(--ink-low)' : 'var(--lime)', lineHeight: 1 }}>
                         {undergroundSignal ? 'N/A' : stats?.momentum_score != null ? stats.momentum_score.toFixed(0) : '—'}
                       </div>
+                      {showMomentumTooltip && (
+                        <div
+                          style={{
+                            position: 'absolute', top: '100%', left: 0, zIndex: 10,
+                            background: 'var(--bg-panel)', border: '1px solid var(--lime)',
+                            padding: '10px 12px', width: 220, marginTop: 8,
+                          }}
+                        >
+                          <div style={{ color: 'var(--ink-hi)', fontSize: 11, lineHeight: 1.6, marginBottom: 8 }}>
+                            Combines streaming growth, listener momentum, and catalog depth. Higher = more heat right now.
+                          </div>
+                          <button
+                            onClick={() => { localStorage.setItem('roster_momentum_tooltip_seen', '1'); setShowMomentumTooltip(false) }}
+                            style={{
+                              fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9,
+                              padding: '4px 10px', border: '1px solid var(--lime)',
+                              color: 'var(--lime)', background: 'transparent', cursor: 'pointer', letterSpacing: 1,
+                            }}
+                          >GOT IT</button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
