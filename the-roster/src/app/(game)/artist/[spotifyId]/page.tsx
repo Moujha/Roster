@@ -22,7 +22,7 @@ export default async function ArtistProfilePage({
     .from('artists').select('*').eq('spotify_id', spotifyId).single()
   if (!artist) notFound()
 
-  const [statsRes, sparkRes, countRes, labelRes, scoutRes, stats14Res, activeScoutCountRes] = await Promise.all([
+  const [statsRes, sparkRes, countRes, labelRes, scoutRes, stats14Res, activeScoutCountRes, watchingRes, watchersRes] = await Promise.all([
     supabase.from('artist_stats_daily').select('*').eq('artist_id', artist.id)
       .order('date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('artist_stats_daily').select('date, daily_streams_top10')
@@ -36,7 +36,27 @@ export default async function ArtistProfilePage({
       .eq('artist_id', artist.id).order('date', { ascending: false }).limit(14),
     supabase.from('scouts').select('*', { count: 'exact', head: true })
       .eq('label_id', user.id).is('completed_at', null),
+    supabase.from('watchlists').select('id').eq('label_id', user.id).eq('artist_id', artist.id).maybeSingle(),
+    supabase.from('watchlists').select('label_id, added_at, labels(label_name)')
+      .eq('artist_id', artist.id).order('added_at', { ascending: true }).limit(6),
   ])
+
+  const isWatching = !!watchingRes.data
+  const watchersRaw = (watchersRes.data ?? []) as unknown as {
+    label_id: string
+    labels: { label_name: string } | { label_name: string }[] | null
+  }[]
+  const watchers = watchersRaw.map(w => {
+    const labelsField = w.labels
+    const labelName = Array.isArray(labelsField)
+      ? (labelsField[0]?.label_name ?? 'Unknown')
+      : (labelsField?.label_name ?? 'Unknown')
+    return { labelId: w.label_id, labelName }
+  })
+  const { count: watcherCount } = await supabase
+    .from('watchlists')
+    .select('*', { count: 'exact', head: true })
+    .eq('artist_id', artist.id)
 
   const stats = statsRes.data as ArtistStats | null
   const statsForClient = stats && artist.tier === 'underground'
@@ -92,6 +112,9 @@ export default async function ArtistProfilePage({
       activeScoutCount={activeScoutCount}
       scoutReport={scoutReport}
       spotifyData={spotifyData as SpotifyEnrichment | null}
+      isWatching={isWatching}
+      watchers={watchers}
+      watcherCount={watcherCount ?? 0}
     />
   )
 }

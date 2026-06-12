@@ -269,7 +269,7 @@ type CounterOffer = {
 
 export default function ArtistProfileClient({
   artist, stats, spark, signedByCount, undergroundSignal, label, rosterCount,
-  scout, activeScoutCount, scoutReport, spotifyData,
+  scout, activeScoutCount, scoutReport, spotifyData, isWatching, watchers, watcherCount,
 }: {
   artist: Artist
   stats: ArtistStats | null
@@ -282,6 +282,9 @@ export default function ArtistProfileClient({
   activeScoutCount: number
   scoutReport: ScoutReport
   spotifyData: SpotifyEnrichment | null
+  isWatching: boolean
+  watchers: { labelId: string; labelName: string }[]
+  watcherCount: number
 }) {
   const router = useRouter()
   const tierColor = TIER_COLORS[artist.tier] ?? 'var(--ink-mid)'
@@ -296,6 +299,8 @@ export default function ArtistProfileClient({
   const [submitError, setSubmitError] = useState('')
   const [scouting, setScouting] = useState(false)
   const [scoutError, setScoutError] = useState('')
+  const [watching, setWatching] = useState(isWatching)
+  const [watchLoading, setWatchLoading] = useState(false)
 
   // Negotiation state
   const [negPhase, setNegPhase] = useState<NegPhase>('idle')
@@ -377,6 +382,23 @@ export default function ArtistProfileClient({
       setScoutError((await res.json()).error ?? 'Scout failed')
       return
     }
+    router.refresh()
+  }
+
+  async function handleWatchToggle() {
+    setWatchLoading(true)
+    if (watching) {
+      await fetch(`/api/watchlist/${artist.id}`, { method: 'DELETE' })
+      setWatching(false)
+    } else {
+      await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artist_id: artist.id }),
+      })
+      setWatching(true)
+    }
+    setWatchLoading(false)
     router.refresh()
   }
 
@@ -565,6 +587,32 @@ export default function ArtistProfileClient({
         </div>
       </div>
 
+      {/* Watched by */}
+      {watcherCount > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line-soft)' }}>
+          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginBottom: 6 }}>WATCHED BY</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {watchers.slice(0, 5).map(w => (
+              <a
+                key={w.labelId}
+                href={`/labels/${w.labelId}`}
+                style={{
+                  color: 'var(--cyan)', fontSize: 9, border: '1px solid rgba(62,224,255,0.25)',
+                  padding: '2px 7px', textDecoration: 'none', fontFamily: 'Inter, sans-serif', fontWeight: 600,
+                }}
+              >
+                {w.labelName}
+              </a>
+            ))}
+            {watcherCount > 5 && (
+              <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>
+                +{watcherCount - 5} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <button
@@ -596,15 +644,18 @@ export default function ArtistProfileClient({
           </a>
         )}
         <button
-          disabled
-          title="Phase 4 feature"
+          onClick={handleWatchToggle}
+          disabled={watchLoading}
           style={{
-            fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 16px',
-            border: '1px solid var(--line)', color: 'var(--ink-low)', background: 'transparent',
-            cursor: 'not-allowed', letterSpacing: 1, opacity: 0.5,
+            fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10,
+            padding: '8px 14px', letterSpacing: 1, cursor: watchLoading ? 'not-allowed' : 'pointer',
+            border: `1px solid ${watching ? 'var(--lime)' : 'var(--line)'}`,
+            color: watching ? 'var(--lime)' : 'var(--ink-mid)',
+            background: watching ? 'rgba(200,255,58,0.08)' : 'transparent',
+            opacity: watchLoading ? 0.5 : 1,
           }}
         >
-          + WATCHLIST
+          {watching ? '★ WATCHING' : '☆ WATCHLIST'}
         </button>
       </div>
 
