@@ -55,7 +55,7 @@ async function handler(request: Request) {
   for (const c of contracts) {
     const { data: statsRow, error: statsErr } = await supabase
       .from('artist_stats_daily')
-      .select('monthly_listeners')
+      .select('monthly_listeners, stream_velocity_7d')
       .eq('artist_id', c.artist_id)
       .eq('date', statsDate)
       .maybeSingle()
@@ -179,6 +179,29 @@ async function handler(request: Request) {
         has_stream_data: adjustedStreams !== null,
       },
     })
+
+    // Breaking alert: fire if velocity exceeds tier-specific threshold, deduped to once per 7 days
+    const velocity = (statsRow as unknown as { stream_velocity_7d: number | null }).stream_velocity_7d ?? null
+    const artistTier = artistMap.get(c.artist_id)?.tier ?? 'emerging'
+    const breakingThreshold = artistTier === 'underground' ? 50 : 25
+    if (velocity !== null && velocity > breakingThreshold) {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000).toISOString()
+      const { count: recentAlerts } = await supabase
+        .from('label_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('label_id', c.label_id)
+        .eq('event_type', 'breaking_alert')
+        .eq('artist_name', artistMap.get(c.artist_id)?.name ?? '')
+        .gte('created_at', sevenDaysAgo)
+      if ((recentAlerts ?? 0) === 0) {
+        await supabase.from('label_events').insert({
+          label_id: c.label_id,
+          event_type: 'breaking_alert',
+          artist_name: artistMap.get(c.artist_id)?.name ?? 'Unknown',
+          payload: { velocity, threshold: breakingThreshold },
+        })
+      }
+    }
   }
 
   // ── Pass 2: expire contracts past end_date ───────────────────────────────────
