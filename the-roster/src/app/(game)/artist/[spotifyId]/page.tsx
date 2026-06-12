@@ -29,7 +29,7 @@ export default async function ArtistProfilePage({
       .eq('artist_id', artist.id).order('date', { ascending: false }).limit(7),
     supabase.from('contracts').select('*', { count: 'exact', head: true })
       .eq('artist_id', artist.id).eq('status', 'active'),
-    supabase.from('labels').select('treasury, id').eq('id', user.id).single(),
+    supabase.from('labels').select('treasury, id, reputation').eq('id', user.id).single(),
     supabase.from('scouts').select('*')
       .eq('label_id', user.id).eq('artist_id', artist.id).maybeSingle(),
     supabase.from('artist_stats_daily').select('daily_streams_top10')
@@ -57,9 +57,28 @@ export default async function ArtistProfilePage({
   const watcherCount = watcherCountRes.count ?? 0
 
   const stats = statsRes.data as ArtistStats | null
-  const statsForClient = stats && artist.tier === 'underground'
-    ? { ...stats, momentum_score: null }
-    : stats
+  const label = labelRes.data
+  const labelReputation = label?.reputation ?? 0
+  const isEstablished = labelReputation >= 250
+  const isVeteran = labelReputation >= 600
+
+  const statsForClient = (() => {
+    if (!stats) return null
+    const withUnderground = artist.tier === 'underground' ? { ...stats, momentum_score: null } : stats
+    if (!isEstablished) return { ...withUnderground, stream_velocity_7d: null, catalog_depth_score: null }
+    return withUnderground
+  })()
+
+  let competitorScoutCount = 0
+  if (isVeteran) {
+    const { count } = await createServiceClient()
+      .from('scouts')
+      .select('*', { count: 'exact', head: true })
+      .eq('artist_id', artist.id)
+      .neq('label_id', user.id)
+      .is('completed_at', null)
+    competitorScoutCount = count ?? 0
+  }
 
   const scout = scoutRes.data as Scout | null
   const stats14 = (stats14Res.data ?? []) as { daily_streams_top10: number | null }[]
@@ -104,7 +123,7 @@ export default async function ArtistProfilePage({
       spark={sparkRes.data ?? []}
       signedByCount={countRes.count ?? 0}
       undergroundSignal={artist.tier === 'underground'}
-      label={labelRes.data as Label}
+      label={label as Label}
       rosterCount={activeContractsRes.data?.length ?? 0}
       scout={scout}
       activeScoutCount={activeScoutCount}
@@ -113,6 +132,8 @@ export default async function ArtistProfilePage({
       isWatching={isWatching}
       watchers={watchers}
       watcherCount={watcherCount}
+      labelReputation={labelReputation}
+      competitorScoutCount={competitorScoutCount}
     />
   )
 }

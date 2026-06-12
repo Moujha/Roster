@@ -270,6 +270,7 @@ type CounterOffer = {
 export default function ArtistProfileClient({
   artist, stats, spark, signedByCount, undergroundSignal, label, rosterCount,
   scout, activeScoutCount, scoutReport, spotifyData, isWatching, watchers, watcherCount,
+  labelReputation, competitorScoutCount,
 }: {
   artist: Artist
   stats: ArtistStats | null
@@ -285,6 +286,8 @@ export default function ArtistProfileClient({
   isWatching: boolean
   watchers: { labelId: string; labelName: string }[]
   watcherCount: number
+  labelReputation: number
+  competitorScoutCount: number
 }) {
   const router = useRouter()
   const tierColor = TIER_COLORS[artist.tier] ?? 'var(--ink-mid)'
@@ -584,6 +587,11 @@ export default function ArtistProfileClient({
           <div className="display" style={{ fontSize: 28, color: 'var(--ink-hi)', lineHeight: 1, marginTop: 4 }}>
             {signedByCount} LABEL{signedByCount !== 1 ? 'S' : ''}
           </div>
+          {labelReputation >= 600 && competitorScoutCount > 0 && (
+            <div className="tag" style={{ color: 'var(--amber)', fontSize: 9, marginTop: 4 }}>
+              {competitorScoutCount} COMPETITOR{competitorScoutCount !== 1 ? 'S' : ''} SCOUTING
+            </div>
+          )}
         </div>
       </div>
 
