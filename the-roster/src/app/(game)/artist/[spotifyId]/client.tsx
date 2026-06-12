@@ -388,15 +388,15 @@ export default function ArtistProfileClient({
   async function handleWatchToggle() {
     setWatchLoading(true)
     if (watching) {
-      await fetch(`/api/watchlist/${artist.id}`, { method: 'DELETE' })
-      setWatching(false)
+      const res = await fetch(`/api/watchlist/${artist.id}`, { method: 'DELETE' })
+      if (res.ok) setWatching(false)
     } else {
-      await fetch('/api/watchlist', {
+      const res = await fetch('/api/watchlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ artist_id: artist.id }),
       })
-      setWatching(true)
+      if (res.ok) setWatching(true)
     }
     setWatchLoading(false)
     router.refresh()
@@ -593,7 +593,7 @@ export default function ArtistProfileClient({
           <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginBottom: 6 }}>WATCHED BY</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             {watchers.slice(0, 5).map(w => (
-              <a
+              <Link
                 key={w.labelId}
                 href={`/labels/${w.labelId}`}
                 style={{
@@ -602,7 +602,7 @@ export default function ArtistProfileClient({
                 }}
               >
                 {w.labelName}
-              </a>
+              </Link>
             ))}
             {watcherCount > 5 && (
               <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>

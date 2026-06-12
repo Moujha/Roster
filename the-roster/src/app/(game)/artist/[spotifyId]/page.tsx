@@ -22,7 +22,7 @@ export default async function ArtistProfilePage({
     .from('artists').select('*').eq('spotify_id', spotifyId).single()
   if (!artist) notFound()
 
-  const [statsRes, sparkRes, countRes, labelRes, scoutRes, stats14Res, activeScoutCountRes, watchingRes, watchersRes] = await Promise.all([
+  const [statsRes, sparkRes, countRes, labelRes, scoutRes, stats14Res, activeScoutCountRes, watchingRes, watchersRes, watcherCountRes] = await Promise.all([
     supabase.from('artist_stats_daily').select('*').eq('artist_id', artist.id)
       .order('date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('artist_stats_daily').select('date, daily_streams_top10')
@@ -38,7 +38,8 @@ export default async function ArtistProfilePage({
       .eq('label_id', user.id).is('completed_at', null),
     supabase.from('watchlists').select('id').eq('label_id', user.id).eq('artist_id', artist.id).maybeSingle(),
     supabase.from('watchlists').select('label_id, added_at, labels(label_name)')
-      .eq('artist_id', artist.id).order('added_at', { ascending: true }).limit(6),
+      .eq('artist_id', artist.id).order('added_at', { ascending: true }).limit(5),
+    supabase.from('watchlists').select('*', { count: 'exact', head: true }).eq('artist_id', artist.id),
   ])
 
   const isWatching = !!watchingRes.data
@@ -53,10 +54,7 @@ export default async function ArtistProfilePage({
       : (labelsField?.label_name ?? 'Unknown')
     return { labelId: w.label_id, labelName }
   })
-  const { count: watcherCount } = await supabase
-    .from('watchlists')
-    .select('*', { count: 'exact', head: true })
-    .eq('artist_id', artist.id)
+  const watcherCount = watcherCountRes.count ?? 0
 
   const stats = statsRes.data as ArtistStats | null
   const statsForClient = stats && artist.tier === 'underground'
@@ -114,7 +112,7 @@ export default async function ArtistProfilePage({
       spotifyData={spotifyData as SpotifyEnrichment | null}
       isWatching={isWatching}
       watchers={watchers}
-      watcherCount={watcherCount ?? 0}
+      watcherCount={watcherCount}
     />
   )
 }
