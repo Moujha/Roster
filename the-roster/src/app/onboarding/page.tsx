@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation'
 const GENRES = ['Afrobeats', 'Hip-Hop', 'Indie', 'Electronic', 'Pop', 'R&B / Soul', 'Latin', 'K-Pop', 'Rock']
 const SEL_COLORS = ['var(--lime)', 'var(--cyan)'] as const
 const SEL_BG = ['rgba(200,255,58,0.1)', 'rgba(62,224,255,0.08)'] as const
+const TIER_COLORS: Record<string, string> = {
+  underground: 'var(--violet)', emerging: 'var(--lime)',
+  rising: 'var(--cyan)', established: 'var(--amber)',
+}
+
+type Suggestion = { id: string; name: string; tier: string; spotify_id: string; hook: string }
 
 const COUNTRIES: { code: string; label: string }[] = [
   { code: 'US', label: 'United States' },
@@ -29,6 +35,7 @@ export default function OnboardingPage() {
   const [country, setCountry] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
 
   async function submitStep1() {
     if (!labelName.trim()) return
@@ -53,6 +60,28 @@ export default function OnboardingPage() {
     setStep(3); setLoading(false)
   }
 
+  async function fetchSuggestions() {
+    try {
+      const res = await fetch('/api/artists/on-ramps')
+      if (!res.ok) return
+      const data = await res.json()
+      const picks: Suggestion[] = []
+      for (const a of (data.genrePicks ?? []).slice(0, 3)) {
+        const score = data.genreScoreMap?.[a.id]
+        picks.push({ id: a.id, name: a.name, tier: a.tier, spotify_id: a.spotify_id,
+          hook: score != null ? `Momentum: ${Math.round(score)}` : '' })
+      }
+      for (const a of (data.breaking ?? [])) {
+        if (picks.length >= 3) break
+        if (picks.find(p => p.id === a.id)) continue
+        const v = data.breakingVelocityMap?.[a.id]
+        picks.push({ id: a.id, name: a.name, tier: a.tier, spotify_id: a.spotify_id,
+          hook: v != null ? `+${(v as number).toFixed(0)}% this week` : '' })
+      }
+      setSuggestions(picks.slice(0, 3))
+    } catch { /* no-op — suggestions are optional */ }
+  }
+
   async function submitStep3() {
     if (!country) return
     setLoading(true)
@@ -61,6 +90,7 @@ export default function OnboardingPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ country }),
     })
+    await fetchSuggestions()
     setStep(4); setLoading(false)
   }
 
@@ -184,7 +214,7 @@ export default function OnboardingPage() {
               {loading ? 'SAVING...' : 'CONTINUE'}
             </button>
             <button
-              onClick={() => setStep(4)}
+              onClick={async () => { await fetchSuggestions(); setStep(4) }}
               style={{
                 width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '10px',
                 border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent',
@@ -199,23 +229,67 @@ export default function OnboardingPage() {
         {step === 4 && (
           <div>
             <div className="tag" style={{ color: 'var(--ink-low)', marginBottom: 12, fontSize: 9 }}>YOUR FIRST SIGNING?</div>
-            <div style={{ color: 'var(--ink-mid)', fontSize: 12, marginBottom: 16 }}>Head to Search to find artists and make your first offer.</div>
-            <button
-              onClick={() => router.push('/search')}
-              style={{ ...btnStyle(true), marginBottom: 8 }}
-            >
-              GO TO SEARCH
-            </button>
-            <button
-              onClick={() => router.push('/dashboard')}
-              style={{
-                width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '10px',
-                border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent',
-                cursor: 'pointer', letterSpacing: 1,
-              }}
-            >
-              SKIP FOR NOW
-            </button>
+            {suggestions.length > 0 ? (
+              <>
+                <div style={{ color: 'var(--ink-mid)', fontSize: 11, marginBottom: 12 }}>Artists picked for your label</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                  {suggestions.map(s => {
+                    const tc = TIER_COLORS[s.tier] ?? 'var(--ink-mid)'
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => router.push(`/artist/${s.spotify_id}`)}
+                        style={{
+                          background: 'var(--bg-panel)', border: '1px solid var(--line)',
+                          padding: '10px 12px', cursor: 'pointer', display: 'flex',
+                          justifyContent: 'space-between', alignItems: 'center',
+                        }}
+                      >
+                        <div>
+                          <div style={{ color: 'var(--ink-hi)', fontSize: 13 }}>{s.name}</div>
+                          {s.hook && (
+                            <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, marginTop: 3 }}>{s.hook}</div>
+                          )}
+                        </div>
+                        <span className="tag" style={{ color: tc, border: `1px solid ${tc}`, padding: '2px 6px', fontSize: 8, background: `${tc}18` }}>
+                          {s.tier.toUpperCase()}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                <button onClick={() => router.push('/search')} style={{ ...btnStyle(true), marginBottom: 6 }}>
+                  SEARCH ALL ARTISTS →
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  style={{
+                    width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '10px',
+                    border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent',
+                    cursor: 'pointer', letterSpacing: 1,
+                  }}
+                >
+                  SKIP FOR NOW
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ color: 'var(--ink-mid)', fontSize: 12, marginBottom: 16 }}>Head to Search to find artists and make your first offer.</div>
+                <button onClick={() => router.push('/search')} style={{ ...btnStyle(true), marginBottom: 8 }}>
+                  GO TO SEARCH
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  style={{
+                    width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 10, padding: '10px',
+                    border: '1px solid var(--line)', color: 'var(--ink-mid)', background: 'transparent',
+                    cursor: 'pointer', letterSpacing: 1,
+                  }}
+                >
+                  SKIP FOR NOW
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
