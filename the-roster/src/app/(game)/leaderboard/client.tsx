@@ -159,7 +159,9 @@ export function LeaderboardClient({ rows, myLabelId }: Props) {
             {/* Name */}
             <div>
               <div style={{ color: isMe ? 'var(--lime)' : 'var(--ink-hi)', fontSize: 13 }}>
-                {row.label_name}
+                <Link href={`/labels/${row.label_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  {row.label_name}
+                </Link>
                 {isMe && <span className="tag" style={{ color: 'var(--lime)', fontSize: 8, marginLeft: 8, border: '1px solid var(--lime)', padding: '1px 4px' }}>YOU</span>}
               </div>
               <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginTop: 1 }}>
@@ -210,7 +212,9 @@ export function LeaderboardClient({ rows, myLabelId }: Props) {
             </div>
             <div>
               <div style={{ color: 'var(--lime)', fontSize: 13 }}>
-                {myRow.label_name}
+                <Link href={`/labels/${myRow.label_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  {myRow.label_name}
+                </Link>
                 <span className="tag" style={{ color: 'var(--lime)', fontSize: 8, marginLeft: 8, border: '1px solid var(--lime)', padding: '1px 4px' }}>YOU</span>
               </div>
               <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginTop: 1 }}>{myRow.reputation} PTS</div>
