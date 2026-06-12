@@ -40,12 +40,20 @@ async function handler(request: Request) {
 
   if (!contracts?.length) return Response.json({ processed: 0, expired: 0, date: today })
 
-  // Batch-fetch artist names + tiers for event writing and tier-up detection
+  // Batch-fetch artist names + tiers + country for event writing, tier-up detection, and home crowd bonus
   const { data: artistRows } = await supabase
     .from('artists')
-    .select('id, name, tier, tier_updated_at')
+    .select('id, name, tier, tier_updated_at, country')
     .in('id', contracts.map(c => c.artist_id))
   const artistMap = new Map((artistRows ?? []).map(a => [a.id, a]))
+
+  // Batch-fetch label countries for home crowd bonus (§3.5.3)
+  const uniqueLabelIds = [...new Set(contracts.map(c => c.label_id))]
+  const { data: labelRows } = await supabase
+    .from('labels')
+    .select('id, country')
+    .in('id', uniqueLabelIds)
+  const labelCountryMap = new Map((labelRows ?? []).map(l => [l.id, l.country ?? null]))
 
   // artist_id → monthly_listeners at statsDate, used in expiry pass
   const listenersMap = new Map<string, number>()
@@ -136,7 +144,11 @@ async function handler(request: Request) {
     }
 
     const combined = computeCombinedMultiplier(playlistTier, releaseMultiplier)
-    const royalties = Math.round(baseRoyalties * combined * 100) / 100
+    // Home Crowd bonus (§3.5.3): 1.15× when label and artist share the same country
+    const artistCountry = artistMap.get(c.artist_id)?.country ?? null
+    const labelCountry = labelCountryMap.get(c.label_id) ?? null
+    const homeCrowd = artistCountry && labelCountry && artistCountry === labelCountry ? 1.15 : 1.0
+    const royalties = Math.round(baseRoyalties * combined * homeCrowd * 100) / 100
 
     // Dev spend (playlist + social, capped at 100% of dev budget)
     const devBudget = baseRoyalties * DEV_BUDGET_PCT
@@ -309,7 +321,7 @@ async function handler(request: Request) {
 
   if (scoutArtistIds.length) {
     const { data: scoutArtists } = await supabase
-      .from('artists').select('id, name, tier, tier_updated_at').in('id', scoutArtistIds)
+      .from('artists').select('id, name, tier, tier_updated_at, country').in('id', scoutArtistIds)
     for (const a of scoutArtists ?? []) artistMap.set(a.id, a)
   }
 

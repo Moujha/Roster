@@ -111,7 +111,8 @@ export async function POST(request: Request) {
   }
   const target = artist.negotiation_target ?? 65
   const { targetModifier, counterWindow } = repNegParams(label.reputation ?? 0)
-  const effectiveTarget = target + targetModifier
+  const loyaltyDiscount = isResign && (label.reputation ?? 0) >= 250 ? -5 : 0
+  const effectiveTarget = target + targetModifier + loyaltyDiscount
 
   // Fast-path: accept_counter=true means player accepted the counter's terms directly
   const score = accept_counter
