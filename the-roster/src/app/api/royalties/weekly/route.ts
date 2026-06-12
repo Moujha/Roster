@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import {
   computeEngagementMultiplier, computeWeeklyRoyalties,
   computeReleaseMultiplier, computeCombinedMultiplier,
+  computeGrowthRepDelta,
   DEV_BUDGET_PCT, DEV_COST_PCT, SOCIAL_FLOOR_PCTS,
   type DevTier,
 } from '@/lib/royalty'
@@ -34,7 +35,7 @@ async function handler(request: Request) {
 
   const { data: contracts } = await supabase
     .from('contracts')
-    .select('id, label_id, artist_id, rev_split_label_pct, end_date, signing_bonus, dev_spend_total, baseline_listeners, royalties_paid_through')
+    .select('id, label_id, artist_id, rev_split_label_pct, end_date, signing_bonus, dev_spend_total, baseline_listeners, baseline_growth_pct, term_months, royalties_paid_through')
     .eq('status', 'active')
 
   if (!contracts?.length) return Response.json({ processed: 0, expired: 0, date: today })
@@ -199,13 +200,25 @@ async function handler(request: Request) {
 
     if (expireErr) continue
 
+    let endListeners = listenersMap.get(c.artist_id) ?? null
+    if (endListeners === null) {
+      const { data: latestStats } = await supabase
+        .from('artist_stats_daily')
+        .select('monthly_listeners')
+        .eq('artist_id', c.artist_id)
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      endListeners = latestStats?.monthly_listeners ?? null
+    }
+
     await supabase.from('label_history').insert({
       label_id: c.label_id,
       contract_id: c.id,
       artist_name: artist?.name ?? 'Unknown',
       artist_tier: artist?.tier ?? 'underground',
       listeners_at_signing: c.baseline_listeners,
-      listeners_at_end: listenersMap.get(c.artist_id) ?? null,
+      listeners_at_end: endListeners,
       signing_bonus: c.signing_bonus,
       total_royalties: totalRoyalties,
       total_dev_spend: c.dev_spend_total,
@@ -226,9 +239,18 @@ async function handler(request: Request) {
         reason: 'natural',
       },
     })
-    // Reputation +15 for natural completion
+    // Reputation: +15 completion + growth contribution (§6.2.2/§6.2.3)
+    const growthRepDelta = (c.baseline_listeners != null && endListeners !== null)
+      ? computeGrowthRepDelta(
+          c.baseline_listeners,
+          endListeners,
+          (c as unknown as { term_months: number }).term_months ?? 6,
+          (c as unknown as { baseline_growth_pct: number | null }).baseline_growth_pct ?? 0,
+        )
+      : 0
     const { data: lbl15 } = await supabase.from('labels').select('reputation').eq('id', c.label_id).single()
-    await supabase.from('labels').update({ reputation: Math.max(0, (lbl15?.reputation ?? 0) + 15) }).eq('id', c.label_id)
+    const newRep = Math.min(1000, Math.max(0, (lbl15?.reputation ?? 0) + 15 + growthRepDelta))
+    await supabase.from('labels').update({ reputation: newRep }).eq('id', c.label_id)
   }
 
   // ── Pass 3: detect tier-ups on still-active contracts ────────────────────────
