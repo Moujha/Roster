@@ -313,6 +313,7 @@ export default function ArtistProfileClient({
   const [coolingOffUntil, setCoolingOffUntil] = useState<string | null>(null)
   const [acceptedViaCounter, setAcceptedViaCounter] = useState(false)
   const [rejectionType, setRejectionType] = useState<'outright' | 'round2' | 'cooldown'>('outright')
+  const [showFirstSignMemo, setShowFirstSignMemo] = useState(false)
   const negRound = negId ? 2 : 1
 
   // Waiting interstitial — stores resolved outcome until delay elapses
@@ -438,6 +439,10 @@ export default function ArtistProfileClient({
     }
 
     if (data.outcome === 'accepted') {
+      if (typeof window !== 'undefined' && !localStorage.getItem('roster_first_sign_memo')) {
+        localStorage.setItem('roster_first_sign_memo', '1')
+        setShowFirstSignMemo(true)
+      }
       setPendingPhase('accepted')
     } else if (data.outcome === 'countered') {
       setOriginalOffer({ bonus, rev_split_label_pct: revSplit, term_months: term })
@@ -473,6 +478,10 @@ export default function ArtistProfileClient({
     if (!res.ok) { setSubmitError(data.error ?? 'Accept failed'); return }
     if (data.outcome === 'accepted') {
       setAcceptedViaCounter(true)
+      if (typeof window !== 'undefined' && !localStorage.getItem('roster_first_sign_memo')) {
+        localStorage.setItem('roster_first_sign_memo', '1')
+        setShowFirstSignMemo(true)
+      }
       setPendingPhase('accepted')
       setNegPhase('waiting')
     }
@@ -952,11 +961,25 @@ export default function ArtistProfileClient({
                     </div>
                   ))}
                 </div>
+                {showFirstSignMemo && (
+                  <div style={{ padding: '12px 14px', background: 'var(--bg-tile)', border: '1px solid var(--line)', marginBottom: 16 }}>
+                    <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginBottom: 8, letterSpacing: 1 }}>LABEL MEMO — WEEK 1</div>
+                    <div style={{ color: 'var(--ink-mid)', fontSize: 11, lineHeight: 1.7 }}>
+                      Your first artist is signed. Royalties start flowing from their real Spotify streams — updated every day.
+                      Every Monday you&rsquo;ll allocate your development budget.
+                      Every Sunday your weekly royalties land.
+                      The leaderboard updates daily.
+                    </div>
+                    <div style={{ color: 'var(--ink-hi)', fontSize: 11, marginTop: 8, fontWeight: 600 }}>
+                      Now find your next artist.
+                    </div>
+                  </div>
+                )}
                 <button onClick={() => router.push('/dashboard')} style={{
                   width: '100%', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '12px',
                   border: '2px solid var(--lime)', color: 'var(--lime)',
                   background: 'rgba(200,255,58,0.08)', cursor: 'pointer', letterSpacing: 1,
-                }}>TO THE ROSTER →</button>
+                }}>{showFirstSignMemo ? 'START YOUR LABEL →' : 'TO THE ROSTER →'}</button>
               </div>
 
             ) : negPhase === 'rejected' ? (
