@@ -558,6 +558,14 @@ export default function ArtistProfileClient({
                   </div>
                 </div>
               )}
+              {labelReputation >= 250 && stats.daily_streams_top10 != null && stats.monthly_listeners != null && stats.monthly_listeners > 0 && (
+                <div>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>STREAMS/LISTENER</div>
+                  <div className="display" style={{ fontSize: 22, color: 'var(--violet)', lineHeight: 1 }}>
+                    {((stats.daily_streams_top10 * 30) / stats.monthly_listeners).toFixed(1)}×
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
