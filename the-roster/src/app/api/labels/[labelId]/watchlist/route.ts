@@ -21,9 +21,9 @@ export async function GET(
     .eq('label_id', labelId)
     .order('added_at', { ascending: false })
 
-  const artistIds = (entries ?? []).map((e: any) => e.artist_id)
+  const artistIds = (entries as { artist_id: string }[] ?? []).map((e: { artist_id: string }) => e.artist_id)
 
-  let statsMap: Map<string, { monthly_listeners: number | null; momentum_score: number | null; spark: (number | null)[] }> = new Map()
+  const statsMap = new Map<string, { monthly_listeners: number | null; momentum_score: number | null; spark: (number | null)[] }>()
 
   if (artistIds.length > 0) {
     const { data: statsRows } = await supabase
@@ -33,13 +33,12 @@ export async function GET(
       .order('date', { ascending: false })
       .limit(artistIds.length * 8)
 
-    const grouped = new Map<string, any[]>()
+    const grouped = new Map<string, { artist_id: string; date: string; daily_streams_top10: number | null; momentum_score: number | null; monthly_listeners: number | null }[]>()
     for (const row of (statsRows ?? [])) {
       if (!grouped.has(row.artist_id)) grouped.set(row.artist_id, [])
       grouped.get(row.artist_id)!.push(row)
     }
     for (const [id, rows] of grouped) {
-      if (!rows) continue
       const top7 = rows.slice(0, 7)
       statsMap.set(id, {
         monthly_listeners: top7[0]?.monthly_listeners ?? null,
@@ -49,10 +48,13 @@ export async function GET(
     }
   }
 
-  const watchlist = (entries ?? []).map((e: any) => ({
+  const watchlist = (entries as unknown as { id: string; added_at: string; artist_id: string; artists: { id: string; name: string; tier: string; spotify_id: string } | null }[] ?? []).map((e: {
+    id: string; added_at: string; artist_id: string;
+    artists: { id: string; name: string; tier: string; spotify_id: string } | null
+  }) => ({
     id: e.id,
     added_at: e.added_at,
-    artist: e.artists && Array.isArray(e.artists) && e.artists.length > 0 ? e.artists[0] : null,
+    artist: e.artists ?? null,
     stats: statsMap.get(e.artist_id) ?? null,
   }))
 
