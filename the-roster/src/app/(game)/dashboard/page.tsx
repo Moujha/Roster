@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import type { Label, Contract, LabelEvent, Scout, DevAllocation, ReleaseAmplification } from '@/lib/types'
 import type { LeaderboardRow } from '../leaderboard/client'
 import { computeWeeklyRoyalties } from '@/lib/royalty'
@@ -77,6 +78,7 @@ async function getData() {
     supabase.from('artist_stats_daily').select('date').order('date', { ascending: false }).limit(1).maybeSingle(),
   ])
 
+  if (!labelRes.data) redirect('/onboarding')
   const label = labelRes.data as Label
   const contracts = (contractsRes.data ?? []) as ContractRow[]
   const events = (eventsRes.data ?? []) as LabelEvent[]

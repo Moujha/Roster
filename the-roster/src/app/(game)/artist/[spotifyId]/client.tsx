@@ -82,6 +82,7 @@ function buildSignalTags(
   stats: { stream_velocity_7d: number | null; listener_growth_28d: number | null } | null,
   scoutReport: { pattern: string; momentum: string; negotiationHint: string | null } | null,
   signedByCount: number,
+  labelReputation: number,
 ): SignalTag[] {
   const tags: SignalTag[] = []
 
@@ -90,7 +91,7 @@ function buildSignalTags(
   else if (signedByCount === 1) tags.push({ text: 'Signed by 1 label', scout: false })
   else tags.push({ text: `Signed by ${signedByCount} labels`, scout: false })
 
-  if (stats?.stream_velocity_7d != null) {
+  if (labelReputation >= 250 && stats?.stream_velocity_7d != null) {
     if (stats.stream_velocity_7d >= 20) tags.push({ text: `+${stats.stream_velocity_7d.toFixed(0)}% velocity this week`, scout: false })
     else if (stats.stream_velocity_7d <= -10) tags.push({ text: `${stats.stream_velocity_7d.toFixed(0)}% velocity this week`, scout: false })
   }
@@ -119,9 +120,10 @@ function generateNarrative(
   stats: { monthly_listeners: number | null; stream_velocity_7d: number | null; listener_growth_28d: number | null } | null,
   scoutReport: { pattern: string; momentum: string; negotiationHint: string | null } | null,
   undergroundSignal: boolean,
+  labelReputation: number,
 ): string {
   const ml = stats?.monthly_listeners ?? 0
-  const v = stats?.stream_velocity_7d
+  const v = labelReputation >= 250 ? stats?.stream_velocity_7d : null
   const g = stats?.listener_growth_28d
   const tier = artist.tier
 
@@ -558,7 +560,7 @@ export default function ArtistProfileClient({
                 <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>MOMENTUM</div>
                 <MomentumRing score={Math.round(stats.momentum_score)} />
               </div>
-              {stats.stream_velocity_7d != null && (
+              {labelReputation >= 250 && stats.stream_velocity_7d != null && (
                 <div>
                   <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>7D VELOCITY</div>
                   <div className="display" style={{ fontSize: 22, color: stats.stream_velocity_7d >= 0 ? 'var(--lime)' : 'var(--rose)', lineHeight: 1 }}>
@@ -566,7 +568,7 @@ export default function ArtistProfileClient({
                   </div>
                 </div>
               )}
-              {stats.catalog_depth_score != null && (
+              {labelReputation >= 250 && stats.catalog_depth_score != null && (
                 <div>
                   <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>CATALOG DEPTH</div>
                   <div className="display" style={{ fontSize: 22, color: 'var(--cyan)', lineHeight: 1 }}>
@@ -823,8 +825,8 @@ export default function ArtistProfileClient({
 
             {/* ── ACT 1 → WAITING → RESULT → OFFER FORM ── */}
             {negPhase === 'reading' ? ((() => {
-              const tags = buildSignalTags(artist, stats, scoutReport, signedByCount)
-              const narrative = generateNarrative(artist, stats, scoutReport, undergroundSignal)
+              const tags = buildSignalTags(artist, stats, scoutReport, signedByCount, labelReputation)
+              const narrative = generateNarrative(artist, stats, scoutReport, undergroundSignal, labelReputation)
               const vColor = stats?.stream_velocity_7d != null
                 ? (stats.stream_velocity_7d >= 0 ? 'var(--lime)' : 'var(--rose)')
                 : 'var(--ink-mid)'
@@ -853,7 +855,7 @@ export default function ArtistProfileClient({
                     <div>
                       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>7D VELOCITY</div>
                       <div className="display" style={{ fontSize: 22, color: vColor, lineHeight: 1 }}>
-                        {stats?.stream_velocity_7d != null
+                        {labelReputation >= 250 && stats?.stream_velocity_7d != null
                           ? `${stats.stream_velocity_7d >= 0 ? '+' : ''}${stats.stream_velocity_7d.toFixed(1)}%`
                           : '—'}
                       </div>
