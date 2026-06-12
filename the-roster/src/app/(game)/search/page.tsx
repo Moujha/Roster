@@ -65,21 +65,21 @@ async function getOnRamps(userId: string) {
   const { data: label } = await supabase
     .from('labels').select('genre_1, genre_2, country').eq('id', userId).single()
 
-  // ── Trending ───────────────────────────────────────────────────────────────
-  // Primary: top 8 by momentum_score. Fallback: top 8 by monthly_listeners.
+  // ── Breaking this week ────────────────────────────────────────────────────
+  // Primary: top 5 by stream_velocity_7d. Fallback: top 8 by monthly_listeners.
   let trending: OnRampSection | null = null
-  const { data: mStats } = await supabase.from('artist_stats_daily')
-    .select('artist_id, momentum_score').eq('date', statsDate)
-    .not('momentum_score', 'is', null).order('momentum_score', { ascending: false }).limit(30)
-  if (mStats?.length) {
+  const { data: vStats } = await supabase.from('artist_stats_daily')
+    .select('artist_id, stream_velocity_7d').eq('date', statsDate)
+    .not('stream_velocity_7d', 'is', null).order('stream_velocity_7d', { ascending: false }).limit(20)
+  if (vStats?.length) {
     const { data: artists } = await supabase.from('artists').select('*')
-      .in('id', mStats.map(s => s.artist_id)).neq('tier', 'major').limit(8)
+      .in('id', vStats.map(s => s.artist_id)).neq('tier', 'major').limit(5)
     if (artists?.length) {
       trending = {
         artists: artists as Artist[],
-        metrics: Object.fromEntries(mStats.map(s => [s.artist_id, s.momentum_score])),
-        metricLabel: 'MOMENTUM', metricColor: 'var(--lime)',
-        format: v => v.toFixed(0),
+        metrics: Object.fromEntries(vStats.map(s => [s.artist_id, s.stream_velocity_7d])),
+        metricLabel: 'VELOCITY', metricColor: 'var(--lime)',
+        format: v => `+${v.toFixed(1)}%`,
       }
     }
   }
@@ -241,7 +241,7 @@ export default async function SearchPage({
           {onRamps.trending && (
             <section>
               <div className="tag" style={{ color: 'var(--lime)', fontSize: 10, marginBottom: 12 }}>
-                {onRamps.trending.metricLabel === 'MOMENTUM' ? 'TRENDING ARTISTS' : 'TOP ARTISTS'}
+                {onRamps.trending.metricLabel === 'VELOCITY' ? 'BREAKING THIS WEEK' : 'TOP ARTISTS'}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                 {onRamps.trending.artists.map(a => (
