@@ -153,3 +153,10 @@ export function generatePriorityWeights(tier: string): PriorityWeights {
 export function generateTargetScore(): number {
   return 55 + Math.floor(Math.random() * 21)
 }
+
+// §6.2.1 — Reputation tier modifies signing target score and counter window
+export function repNegParams(reputation: number): { targetModifier: number; counterWindow: number } {
+  if (reputation >= 600) return { targetModifier: -10, counterWindow: 25 }
+  if (reputation >= 250) return { targetModifier: -5, counterWindow: 20 }
+  return { targetModifier: 0, counterWindow: 15 }
+}
