@@ -70,7 +70,7 @@ export interface LabelHistory {
   completed_at: string
 }
 
-export type EventType = 'royalty_paid' | 'artist_signed' | 'contract_expired' | 'tier_up' | 'scout_completed' | 'release_boost'
+export type EventType = 'royalty_paid' | 'artist_signed' | 'contract_expired' | 'tier_up' | 'scout_completed' | 'release_boost' | 'breaking_alert'
 
 export interface DevAllocation {
   contract_id: string

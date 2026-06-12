@@ -19,6 +19,8 @@ export function describeEvent(e: LabelEvent): string {
       const tier = p.spend_tier as string
       return `Release boost activated — ${e.artist_name} · ${tier}`
     }
+    case 'breaking_alert':
+      return `${e.artist_name} is breaking — +${(p.velocity as number).toFixed(1)}% velocity`
     default:
       return e.artist_name
   }

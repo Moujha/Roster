@@ -28,6 +28,7 @@ const EVENT_COLORS: Record<string, string> = {
   royalty_paid: 'var(--lime)', artist_signed: 'var(--cyan)',
   contract_expired: 'var(--rose)', tier_up: 'var(--amber)',
   scout_completed: 'var(--amber)', release_boost: 'var(--violet)',
+  breaking_alert: 'var(--amber)',
 }
 
 function fmtUSD(n: number) {
