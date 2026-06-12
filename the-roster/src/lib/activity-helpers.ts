@@ -9,7 +9,8 @@ export function describeEvent(e: LabelEvent): string {
       return `Signed ${e.artist_name} · ${p.months}mo deal`
     case 'contract_expired': {
       const pnl = p.net_pnl as number
-      return `Contract ended — ${e.artist_name} · ${pnl >= 0 ? '+' : '-'}$${Math.abs(pnl).toFixed(0)}`
+      const verb = (p.reason as string) === 'dropped' ? 'Dropped' : 'Contract ended'
+      return `${verb} — ${e.artist_name} · ${pnl >= 0 ? '+' : '-'}$${Math.abs(pnl).toFixed(0)}`
     }
     case 'tier_up':
       return `${e.artist_name} reached ${p.new_tier} tier`
