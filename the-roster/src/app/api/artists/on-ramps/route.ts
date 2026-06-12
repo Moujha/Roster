@@ -5,19 +5,18 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const today = new Date().toISOString().slice(0, 10)
+  const [{ data: latestRow }, { data: label }] = await Promise.all([
+    supabase.from('artist_stats_daily').select('date').order('date', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('labels').select('genre_1, genre_2, country').eq('id', user.id).single(),
+  ])
+  const statsDate = latestRow?.date
+  if (!statsDate) return Response.json({ breaking: [], breakingVelocityMap: {}, genrePicks: [], genreScoreMap: {}, regional: [], regionalVelocityMap: {} })
 
-  const { data: label } = await supabase
-    .from('labels')
-    .select('genre_1, genre_2, country')
-    .eq('id', user.id)
-    .single()
-
-  // Breaking: top 5 by stream_velocity_7d today
+  // Breaking: top 5 by stream_velocity_7d on latest available stats date
   const { data: bStats } = await supabase
     .from('artist_stats_daily')
     .select('artist_id, stream_velocity_7d')
-    .eq('date', today)
+    .eq('date', statsDate)
     .not('stream_velocity_7d', 'is', null)
     .order('stream_velocity_7d', { ascending: false })
     .limit(5)
@@ -44,7 +43,7 @@ export async function GET() {
       const { data: gStats } = await supabase
         .from('artist_stats_daily')
         .select('artist_id, momentum_score')
-        .eq('date', today)
+        .eq('date', statsDate)
         .in('artist_id', gArtists.map(a => a.id))
         .not('momentum_score', 'is', null)
         .order('momentum_score', { ascending: false })
@@ -72,7 +71,7 @@ export async function GET() {
       const { data: rStats } = await supabase
         .from('artist_stats_daily')
         .select('artist_id, stream_velocity_7d')
-        .eq('date', today)
+        .eq('date', statsDate)
         .in('artist_id', rArtists.map(a => a.id))
         .not('stream_velocity_7d', 'is', null)
         .order('stream_velocity_7d', { ascending: false })
