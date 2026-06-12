@@ -22,6 +22,12 @@ function fmtUSD(n: number) {
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+function fmtListeners(n: number | null | undefined) {
+  if (n == null) return '—'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
+  return `${n}`
+}
 function weeksLeft(endDate: string) {
   return Math.max(0, Math.ceil((new Date(endDate).getTime() - Date.now()) / (7 * 86_400_000)))
 }
@@ -45,6 +51,18 @@ export default async function ContractsPage() {
   const today = new Date().toISOString().slice(0, 10)
   const activeIds = active.map(c => c.id)
   const activeArtistIds = active.map(c => c.artist_id)
+
+  const { data: historyData } = await supabase
+    .from('label_history')
+    .select('*')
+    .eq('label_id', user.id)
+    .order('completed_at', { ascending: false })
+  const labelHistory = (historyData ?? []) as {
+    id: string; artist_name: string; artist_tier: string
+    listeners_at_signing: number | null; listeners_at_end: number | null
+    signing_bonus: number; total_royalties: number; total_dev_spend: number
+    net_pnl: number; reason: string; completed_at: string
+  }[]
 
   const [devAllocsRes, releaseAmpsRes, statsRes] = await Promise.all([
     activeIds.length
@@ -172,6 +190,63 @@ export default async function ContractsPage() {
           )
         })}
       </div>
+
+      {/* Label Record */}
+      {labelHistory.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 12 }}>LABEL RECORD</div>
+          <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
+            {labelHistory.map((h, i) => {
+              const tc = TIER_COLORS[h.artist_tier] ?? 'var(--ink-mid)'
+              const growth = h.listeners_at_signing && h.listeners_at_end
+                ? ((h.listeners_at_end - h.listeners_at_signing) / h.listeners_at_signing * 100)
+                : null
+              return (
+                <div key={h.id} style={{
+                  display: 'grid', gridTemplateColumns: '1fr 110px 110px 110px 100px',
+                  gap: 12, alignItems: 'center', padding: '10px 16px',
+                  borderBottom: i < labelHistory.length - 1 ? '1px solid var(--line-soft)' : 'none',
+                }}>
+                  <div>
+                    <div style={{ color: 'var(--ink-hi)', fontSize: 13 }}>{h.artist_name}</div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 3, alignItems: 'center' }}>
+                      <span className="tag" style={{ color: tc, fontSize: 8, border: `1px solid ${tc}`, padding: '1px 4px', background: `${tc}18` }}>{h.artist_tier.toUpperCase()}</span>
+                      <span className="tag" style={{ color: h.reason === 'dropped' ? 'var(--rose)' : 'var(--ink-low)', fontSize: 8 }}>
+                        {h.reason === 'dropped' ? 'DROPPED' : 'COMPLETED'} {fmtDate(h.completed_at)}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>LISTENERS</div>
+                    <div className="tag" style={{ color: 'var(--ink-hi)', fontSize: 10, marginTop: 2 }}>
+                      {fmtListeners(h.listeners_at_signing)} → {fmtListeners(h.listeners_at_end)}
+                    </div>
+                    {growth != null && (
+                      <div className="tag" style={{ color: growth >= 0 ? 'var(--lime)' : 'var(--rose)', fontSize: 8, marginTop: 1 }}>
+                        {growth >= 0 ? '+' : ''}{growth.toFixed(0)}%
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>ROYALTIES</div>
+                    <div className="tag" style={{ color: 'var(--lime)', fontSize: 10, marginTop: 2 }}>{fmtUSD(h.total_royalties)}</div>
+                  </div>
+                  <div>
+                    <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>INVESTED</div>
+                    <div className="tag" style={{ color: 'var(--ink-mid)', fontSize: 10, marginTop: 2 }}>{fmtUSD(h.signing_bonus + h.total_dev_spend)}</div>
+                  </div>
+                  <div>
+                    <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8 }}>NET P&L</div>
+                    <div className="tag" style={{ color: h.net_pnl >= 0 ? 'var(--lime)' : 'var(--rose)', fontSize: 10, marginTop: 2 }}>
+                      {h.net_pnl >= 0 ? '+' : ''}{fmtUSD(h.net_pnl)}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
