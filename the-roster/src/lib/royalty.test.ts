@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeEngagementMultiplier, computeWeeklyRoyalties } from './royalty'
+import { computeEngagementMultiplier, computeWeeklyRoyalties, computeGrowthRepDelta } from './royalty'
 
 describe('computeEngagementMultiplier', () => {
   it('returns 1.0 when actualWeeklyStreams is null', () => {
@@ -45,5 +45,35 @@ describe('computeWeeklyRoyalties', () => {
   it('applies rev split correctly', () => {
     // 100K × 0.000175 × 0.25 = 4.375 → rounded to 4.38
     expect(computeWeeklyRoyalties(100_000, 25, null)).toBe(4.38)
+  })
+})
+
+describe('computeGrowthRepDelta', () => {
+  it('returns 0 when startListeners is 0 (divide-by-zero guard)', () => {
+    expect(computeGrowthRepDelta(0, 100_000, 6, 5)).toBe(0)
+  })
+
+  it('returns 0 when termMonths is 0 (divide-by-zero guard)', () => {
+    expect(computeGrowthRepDelta(100_000, 200_000, 0, 5)).toBe(0)
+  })
+
+  it('awards growth reputation when artist outperformed baseline', () => {
+    // actualAvg = (120k / 100k * 100) / 6 = 20%/mo; baseline = 5%/mo; contribution = +15
+    expect(computeGrowthRepDelta(100_000, 220_000, 6, 5)).toBe(15)
+  })
+
+  it('caps growth reputation at +40', () => {
+    // actualAvg = (900k / 100k * 100) / 6 = 150%/mo; baseline = 0; contribution = 150 → capped 40
+    expect(computeGrowthRepDelta(100_000, 1_000_000, 6, 0)).toBe(40)
+  })
+
+  it('returns 0 when growth contribution is negative but above -20%', () => {
+    // actualAvg = (-10k / 100k * 100) / 6 = -1.67%/mo; baseline = 0; contribution = -1.67 → 0
+    expect(computeGrowthRepDelta(100_000, 90_000, 6, 0)).toBe(0)
+  })
+
+  it('returns -10 when growth contribution is below -20%', () => {
+    // actualAvg = (-60k / 100k * 100) / 1 = -60%/mo; baseline = 0; contribution = -60 → -10
+    expect(computeGrowthRepDelta(100_000, 40_000, 1, 0)).toBe(-10)
   })
 })

@@ -53,3 +53,17 @@ export function computeReleaseMultiplier(peakMultiplier: number, daysSinceTrigge
 export function computeCombinedMultiplier(playlistTier: DevTier, releaseMultiplier: number): number {
   return Math.min(PLAYLIST_MULTIPLIERS[playlistTier] * releaseMultiplier, 1.60)
 }
+
+export function computeGrowthRepDelta(
+  startListeners: number,
+  endListeners: number,
+  termMonths: number,
+  baselineGrowthPct: number,
+): number {
+  if (startListeners <= 0 || termMonths <= 0) return 0
+  const actualAvgMonthlyGrowth = ((endListeners - startListeners) / startListeners * 100) / termMonths
+  const contribution = actualAvgMonthlyGrowth - baselineGrowthPct
+  if (contribution > 0) return Math.min(Math.round(contribution), 40)
+  if (contribution < -20) return -10
+  return 0
+}
