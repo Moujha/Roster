@@ -79,12 +79,8 @@ export function generateCounter(
     const gap = max - offer.bonus
     counter.bonus = Math.round(offer.bonus + gap * 0.25)
   } else {
-    // Commitment: push term toward preferred direction
-    if (weights.freedom > weights.commitment) {
-      counter.term_months = offer.term_months === 12 ? 6 : 3
-    } else {
-      counter.term_months = offer.term_months === 3 ? 6 : 12
-    }
+    // Commitment-dominant: push toward longer term
+    counter.term_months = offer.term_months === 3 ? 6 : 12
   }
 
   return counter
