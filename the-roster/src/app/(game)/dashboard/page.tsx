@@ -69,13 +69,16 @@ async function getData() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  // GDD §3.4: 48-hour data lag — players never see data newer than 48 hours
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
+
   // ── Pass 1: core data ────────────────────────────────────────────────────────
   const [labelRes, contractsRes, eventsRes, scoutsRes, latestDateRes] = await Promise.all([
     supabase.from('labels').select('*').eq('id', user.id).single(),
     supabase.from('contracts').select('*, artists(name, tier, spotify_id)').eq('label_id', user.id).order('created_at', { ascending: false }),
     supabase.from('label_events').select('*').eq('label_id', user.id).order('created_at', { ascending: false }).limit(8),
     supabase.from('scouts').select('*, artists(name, tier, spotify_id)').eq('label_id', user.id).order('completes_at', { ascending: true }).limit(12),
-    supabase.from('artist_stats_daily').select('date').order('date', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('artist_stats_daily').select('date').lte('date', lagDate).order('date', { ascending: false }).limit(1).maybeSingle(),
   ])
 
   if (!labelRes.data) redirect('/onboarding')
@@ -114,7 +117,7 @@ async function getData() {
       ? supabase.from('artist_stats_daily').select('artist_id, monthly_listeners, stream_velocity_7d').in('artist_id', activeArtistIds).eq('date', latestDate)
       : Promise.resolve({ data: [] as { artist_id: string; monthly_listeners: number | null; stream_velocity_7d: number | null }[] }),
     activeArtistIds.length
-      ? supabase.from('artist_stats_daily').select('artist_id, date, daily_streams_top10').in('artist_id', activeArtistIds).order('date', { ascending: false }).limit(activeArtistIds.length * 7)
+      ? supabase.from('artist_stats_daily').select('artist_id, date, daily_streams_top10').in('artist_id', activeArtistIds).lte('date', lagDate).order('date', { ascending: false }).limit(activeArtistIds.length * 7)
       : Promise.resolve({ data: [] as { artist_id: string; date: string; daily_streams_top10: number | null }[] }),
     latestDate
       ? supabase.from('artist_stats_daily')

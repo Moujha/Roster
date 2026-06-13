@@ -64,6 +64,7 @@ export default async function ContractsPage() {
     net_pnl: number; reason: string; completed_at: string
   }[]
 
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
   const [devAllocsRes, releaseAmpsRes, statsRes] = await Promise.all([
     activeIds.length
       ? supabase.from('dev_allocations').select('*').in('contract_id', activeIds)
@@ -72,7 +73,7 @@ export default async function ContractsPage() {
       ? supabase.from('release_amplifications').select('*').in('contract_id', activeIds).gte('expires_at', today)
       : Promise.resolve({ data: [] }),
     activeArtistIds.length
-      ? supabase.from('artist_stats_daily').select('artist_id, monthly_listeners, date').in('artist_id', activeArtistIds).order('date', { ascending: false })
+      ? supabase.from('artist_stats_daily').select('artist_id, monthly_listeners, date').in('artist_id', activeArtistIds).lte('date', lagDate).order('date', { ascending: false })
       : Promise.resolve({ data: [] }),
   ])
 
