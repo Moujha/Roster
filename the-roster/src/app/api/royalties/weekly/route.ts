@@ -305,7 +305,7 @@ async function handler(request: Request) {
     })
     // Reputation +30 for tier-up during contract term
     const { data: lbl } = await supabase.from('labels').select('reputation').eq('id', c.label_id).single()
-    await supabase.from('labels').update({ reputation: Math.max(0, (lbl?.reputation ?? 0) + 30) }).eq('id', c.label_id)
+    await supabase.from('labels').update({ reputation: Math.min(1000, Math.max(0, (lbl?.reputation ?? 0) + 30)) }).eq('id', c.label_id)
   }
 
   // ── Pass 4: complete overdue scouts ─────────────────────────────────────────
