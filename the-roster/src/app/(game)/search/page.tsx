@@ -56,9 +56,9 @@ type OnRampSection = {
 async function getOnRamps(userId: string) {
   const supabase = await createClient()
 
-  // Use latest available stats date, not necessarily today
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
   const { data: latestRow } = await supabase
-    .from('artist_stats_daily').select('date').order('date', { ascending: false }).limit(1).maybeSingle()
+    .from('artist_stats_daily').select('date').lte('date', lagDate).order('date', { ascending: false }).limit(1).maybeSingle()
   const statsDate = latestRow?.date
   if (!statsDate) return null
 
