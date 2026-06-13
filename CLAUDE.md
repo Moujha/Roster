@@ -108,7 +108,7 @@ offer_score = (bonus_score × money_weight)
 - `score < target − window` → **rejected** (deal dead)
 - Round 2 failure → **cooling-off** (30-day lock for that label only)
 
-**Reputation modifier on target score (not yet implemented):**
+**Reputation modifier on target score:**
 | Tier | Target modifier | Counter window |
 |---|---|---|
 | New | 0 | 15 pts below target |
