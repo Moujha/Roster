@@ -201,10 +201,11 @@ export default async function SearchPage({
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
   const { q } = await searchParams
 
   const scoutData = await supabase
-    .from('scouts').select('artist_id').eq('label_id', user!.id).is('completed_at', null)
+    .from('scouts').select('artist_id').eq('label_id', user.id).is('completed_at', null)
   const activeScoutIds = new Set((scoutData.data ?? []).map(s => s.artist_id))
 
   let searchResults: Artist[] = []
@@ -213,7 +214,7 @@ export default async function SearchPage({
     searchResults = (data ?? []) as Artist[]
   }
 
-  const onRamps = !q ? await getOnRamps(user!.id) : null
+  const onRamps = !q ? await getOnRamps(user.id) : null
 
   return (
     <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 960 }}>

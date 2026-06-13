@@ -172,9 +172,13 @@ async function getData() {
   })
 
   const breaking = eligible.filter(r => (r.stream_velocity_7d ?? 0) > 0).slice(0, 5)
-  const genreSet = new Set([label?.genre_1, label?.genre_2].filter(Boolean))
+  const labelGenres = [label?.genre_1, label?.genre_2].filter(Boolean) as string[]
   const genrePicks = eligible
-    .filter(r => genreSet.size > 0 && r.artists && genreSet.has(r.artists.genre))
+    .filter(r => {
+      if (labelGenres.length === 0 || !r.artists?.genre) return false
+      const g = r.artists.genre.toLowerCase()
+      return labelGenres.some(lg => g.includes(lg.toLowerCase()))
+    })
     .sort((a, b) => (b.momentum_score ?? 0) - (a.momentum_score ?? 0))
     .slice(0, 3)
   const regional = label?.country
