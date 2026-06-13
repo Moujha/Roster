@@ -5,8 +5,10 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
+
   const [{ data: latestRow }, { data: label }] = await Promise.all([
-    supabase.from('artist_stats_daily').select('date').order('date', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('artist_stats_daily').select('date').lte('date', lagDate).order('date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('labels').select('genre_1, genre_2, country').eq('id', user.id).single(),
   ])
   const statsDate = latestRow?.date

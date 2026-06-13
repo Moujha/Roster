@@ -18,11 +18,13 @@ export async function GET(
 
   if (aErr || !artist) return Response.json({ error: 'Not found' }, { status: 404 })
 
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
+
   const [statsRes, sparkRes, countRes] = await Promise.all([
     supabase.from('artist_stats_daily').select('*').eq('artist_id', artist.id)
-      .order('date', { ascending: false }).limit(1).maybeSingle(),
+      .lte('date', lagDate).order('date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('artist_stats_daily').select('date, daily_streams_top10')
-      .eq('artist_id', artist.id).order('date', { ascending: false }).limit(7),
+      .eq('artist_id', artist.id).lte('date', lagDate).order('date', { ascending: false }).limit(7),
     supabase.from('contracts').select('*', { count: 'exact', head: true })
       .eq('artist_id', artist.id).eq('status', 'active'),
   ])

@@ -176,9 +176,10 @@ async function createContract(
   const today = new Date().toISOString().slice(0, 10)
   const endDate = new Date(Date.now() + offer.term_months * 30 * 86400_000).toISOString().slice(0, 10)
 
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
   const { data: latestStats } = await supabase
     .from('artist_stats_daily').select('monthly_listeners, listener_growth_28d')
-    .eq('artist_id', artist.id).order('date', { ascending: false }).limit(1).maybeSingle()
+    .eq('artist_id', artist.id).lte('date', lagDate).order('date', { ascending: false }).limit(1).maybeSingle()
 
   const { data: contract, error } = await supabase.from('contracts').insert({
     label_id: labelId,

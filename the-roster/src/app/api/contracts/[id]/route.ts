@@ -50,10 +50,12 @@ export async function DELETE(
     .eq('id', contract.artist_id)
     .single()
 
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
   const { data: latestStats } = await supabase
     .from('artist_stats_daily')
     .select('monthly_listeners')
     .eq('artist_id', contract.artist_id)
+    .lte('date', lagDate)
     .order('date', { ascending: false })
     .limit(1)
     .maybeSingle()

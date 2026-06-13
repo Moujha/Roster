@@ -82,11 +82,12 @@ export async function POST(request: Request) {
   if (range && (signing_bonus < range[0] || signing_bonus > range[1]))
     return Response.json({ error: `Signing bonus out of range for ${artist.tier} (${range[0]}-${range[1]})` }, { status: 400 })
 
-  // Fetch latest stats for baseline
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
   const { data: latestStats } = await supabase
     .from('artist_stats_daily')
     .select('monthly_listeners, listener_growth_28d')
     .eq('artist_id', artist_id)
+    .lte('date', lagDate)
     .order('date', { ascending: false })
     .limit(1)
     .maybeSingle()

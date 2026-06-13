@@ -22,18 +22,21 @@ export default async function ArtistProfilePage({
     .from('artists').select('*').eq('spotify_id', spotifyId).single()
   if (!artist) notFound()
 
+  // GDD §3.4: all players see data 48 hours old
+  const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
+
   const [statsRes, sparkRes, countRes, labelRes, scoutRes, stats14Res, activeScoutCountRes, watchingRes, watchersRes, watcherCountRes] = await Promise.all([
     supabase.from('artist_stats_daily').select('*').eq('artist_id', artist.id)
-      .order('date', { ascending: false }).limit(1).maybeSingle(),
+      .lte('date', lagDate).order('date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('artist_stats_daily').select('date, daily_streams_top10')
-      .eq('artist_id', artist.id).order('date', { ascending: false }).limit(7),
+      .eq('artist_id', artist.id).lte('date', lagDate).order('date', { ascending: false }).limit(7),
     supabase.from('contracts').select('*', { count: 'exact', head: true })
       .eq('artist_id', artist.id).eq('status', 'active'),
     supabase.from('labels').select('treasury, id, reputation').eq('id', user.id).single(),
     supabase.from('scouts').select('*')
       .eq('label_id', user.id).eq('artist_id', artist.id).maybeSingle(),
     supabase.from('artist_stats_daily').select('daily_streams_top10')
-      .eq('artist_id', artist.id).order('date', { ascending: false }).limit(14),
+      .eq('artist_id', artist.id).lte('date', lagDate).order('date', { ascending: false }).limit(14),
     supabase.from('scouts').select('*', { count: 'exact', head: true })
       .eq('label_id', user.id).is('completed_at', null),
     supabase.from('watchlists').select('id').eq('label_id', user.id).eq('artist_id', artist.id).maybeSingle(),

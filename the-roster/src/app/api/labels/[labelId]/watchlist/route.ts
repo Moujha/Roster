@@ -26,10 +26,12 @@ export async function GET(
   const statsMap = new Map<string, { monthly_listeners: number | null; momentum_score: number | null; spark: (number | null)[] }>()
 
   if (artistIds.length > 0) {
+    const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
     const { data: statsRows } = await supabase
       .from('artist_stats_daily')
       .select('artist_id, date, daily_streams_top10, momentum_score, monthly_listeners')
       .in('artist_id', artistIds)
+      .lte('date', lagDate)
       .order('date', { ascending: false })
       .limit(artistIds.length * 8)
 
