@@ -47,6 +47,29 @@ describe('describeEvent', () => {
     const e = makeEvent({ event_type: 'tier_up', payload: { new_tier: 'rising' } })
     expect(describeEvent(e)).toBe('Aya Nakamura reached rising tier')
   })
+
+  it('formats scout_completed', () => {
+    const e = makeEvent({ event_type: 'scout_completed', payload: { weeks_taken: 4 } })
+    expect(describeEvent(e)).toBe('Scout complete — Aya Nakamura')
+  })
+
+  it('formats release_boost', () => {
+    const e = makeEvent({ event_type: 'release_boost', payload: { spend_tier: 'heavy' } })
+    expect(describeEvent(e)).toBe('Release boost activated — Aya Nakamura · heavy')
+  })
+
+  it('formats breaking_alert', () => {
+    const e = makeEvent({ event_type: 'breaking_alert', payload: { velocity: 42.7, threshold: 25 } })
+    expect(describeEvent(e)).toBe('Aya Nakamura is breaking — +42.7% velocity')
+  })
+
+  it('formats contract_expired when dropped', () => {
+    const e = makeEvent({
+      event_type: 'contract_expired',
+      payload: { net_pnl: -500, total_royalties: 700, signing_bonus: 1200, reason: 'dropped' },
+    })
+    expect(describeEvent(e)).toBe('Dropped — Aya Nakamura · -$500')
+  })
 })
 
 describe('getWeekLabel', () => {
