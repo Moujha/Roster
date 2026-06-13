@@ -68,10 +68,13 @@ export async function POST(request: Request) {
       .from('artists')
       .select('country, genre')
       .in('id', activeContracts.map(c => c.artist_id))
-    hasAffinity = (rosterArtists ?? []).some(a =>
-      (artist.country && a.country === artist.country) ||
-      (artist.genre && a.genre === artist.genre),
-    )
+    hasAffinity = (rosterArtists ?? []).some(a => {
+      const countryMatch = artist.country && a.country === artist.country
+      const genreMatch = artist.genre && a.genre &&
+        (a.genre.toLowerCase().includes(artist.genre.toLowerCase()) ||
+         artist.genre.toLowerCase().includes(a.genre.toLowerCase()))
+      return countryMatch || genreMatch
+    })
   }
 
   const durationWeeks = scoutDurationWeeks(artist.tier as Tier, false, hasAffinity)
