@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { computeEngagementMultiplier, computeWeeklyRoyalties, computeGrowthRepDelta } from './royalty'
+import {
+  computeEngagementMultiplier, computeWeeklyRoyalties, computeGrowthRepDelta,
+  computeReleaseMultiplier, computeCombinedMultiplier,
+} from './royalty'
 
 describe('computeEngagementMultiplier', () => {
   it('returns 1.0 when actualWeeklyStreams is null', () => {
@@ -45,6 +48,45 @@ describe('computeWeeklyRoyalties', () => {
   it('applies rev split correctly', () => {
     // 100K × 0.000175 × 0.25 = 4.375 → rounded to 4.38
     expect(computeWeeklyRoyalties(100_000, 25, null)).toBe(4.38)
+  })
+})
+
+describe('computeReleaseMultiplier', () => {
+  it('returns peak on day 0', () => {
+    expect(computeReleaseMultiplier(1.50, 0)).toBeCloseTo(1.50, 5)
+  })
+
+  it('returns 1.0 at day 14 (fully decayed)', () => {
+    expect(computeReleaseMultiplier(1.50, 14)).toBe(1.0)
+  })
+
+  it('returns 1.0 beyond day 14', () => {
+    expect(computeReleaseMultiplier(1.50, 20)).toBe(1.0)
+  })
+
+  it('decays linearly to midpoint at day 7', () => {
+    // peak=1.50, day 7 → 1.0 + 0.50 * (1 - 7/14) = 1.25
+    expect(computeReleaseMultiplier(1.50, 7)).toBeCloseTo(1.25, 5)
+  })
+})
+
+describe('computeCombinedMultiplier', () => {
+  it('returns playlist multiplier when no release (releaseMultiplier=1.0)', () => {
+    expect(computeCombinedMultiplier('heavy', 1.0)).toBeCloseTo(1.22, 5)
+  })
+
+  it('multiplies playlist × release within cap', () => {
+    // light playlist (1.08) × light release peak (1.20) = 1.296 < 1.60 → no cap
+    expect(computeCombinedMultiplier('light', 1.20)).toBeCloseTo(1.296, 3)
+  })
+
+  it('caps at 1.60 when product would exceed it (§5.5)', () => {
+    // heavy playlist (1.22) × heavy release peak (1.50) = 1.83 → capped 1.60
+    expect(computeCombinedMultiplier('heavy', 1.50)).toBe(1.60)
+  })
+
+  it('returns 1.0 for none playlist and no release', () => {
+    expect(computeCombinedMultiplier('none', 1.0)).toBe(1.0)
   })
 })
 
