@@ -204,14 +204,14 @@ async function handler(request: Request) {
         .select('*', { count: 'exact', head: true })
         .eq('label_id', c.label_id)
         .eq('event_type', 'breaking_alert')
-        .eq('artist_name', artistName)
+        .contains('payload', { artist_id: c.artist_id })
         .gte('created_at', sevenDaysAgo)
       if ((recentAlerts ?? 0) === 0) {
         await supabase.from('label_events').insert({
           label_id: c.label_id,
           event_type: 'breaking_alert',
           artist_name: artistName,
-          payload: { velocity, threshold: breakingThreshold },
+          payload: { artist_id: c.artist_id, velocity, threshold: breakingThreshold },
         })
       }
     }
