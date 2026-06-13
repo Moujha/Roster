@@ -256,7 +256,7 @@ function SparkBars({ data }: { data: { date: string; daily_streams_top10: number
 
 type ScoutReport = {
   pattern: 'organic' | 'spike' | 'mixed'
-  bonusEstimate: number
+  bonusEstimate: { estimate: number; margin: number }
   momentum: 'stable' | 'moderate' | 'volatile'
   negotiationHint: string | null
 } | null
@@ -790,7 +790,7 @@ export default function ArtistProfileClient({
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
               <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>SIGNING BONUS EST.</span>
-              <span className="tag" style={{ color: 'var(--lime)', fontSize: 10 }}>~{fmtUSD(scoutReport.bonusEstimate)}</span>
+              <span className="tag" style={{ color: 'var(--lime)', fontSize: 10 }}>{fmtUSD(scoutReport.bonusEstimate.estimate)} ± {fmtUSD(scoutReport.bonusEstimate.margin)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--bg-panel)', border: '2px solid var(--line)' }}>
               <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>MOMENTUM</span>

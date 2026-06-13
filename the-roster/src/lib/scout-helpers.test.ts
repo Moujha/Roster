@@ -85,29 +85,33 @@ describe('classifyPattern', () => {
 })
 
 describe('estimateBonus', () => {
-  it('returns bonus_min at tier minimum listeners', () => {
-    expect(estimateBonus('underground', 0)).toBe(500)
-    expect(estimateBonus('emerging', 50_000)).toBe(5_000)
+  it('returns { estimate: bonus_min, margin } at tier minimum listeners', () => {
+    expect(estimateBonus('underground', 0)).toEqual({ estimate: 500, margin: 75 })
+    expect(estimateBonus('emerging', 50_000)).toEqual({ estimate: 5_000, margin: 750 })
   })
 
-  it('returns bonus_max at tier maximum listeners', () => {
-    expect(estimateBonus('underground', 50_000)).toBe(2_000)
-    expect(estimateBonus('established', 10_000_000)).toBe(300_000)
+  it('returns { estimate: bonus_max, margin } at tier maximum listeners', () => {
+    expect(estimateBonus('underground', 50_000)).toEqual({ estimate: 2_000, margin: 300 })
+    expect(estimateBonus('established', 10_000_000)).toEqual({ estimate: 300_000, margin: 45_000 })
   })
 
-  it('interpolates at midpoint', () => {
-    // underground midpoint 25K: position=0.5, estimate=round(500+750)=1250
-    expect(estimateBonus('underground', 25_000)).toBe(1_250)
-    // emerging midpoint 275K: position=0.5, estimate=round(5000+7500)=12500
-    expect(estimateBonus('emerging', 275_000)).toBe(12_500)
+  it('interpolates at midpoint with 15% margin', () => {
+    // underground midpoint 25K: estimate=1250, margin=round(1250*0.15)=188
+    expect(estimateBonus('underground', 25_000)).toEqual({ estimate: 1_250, margin: 188 })
+    // emerging midpoint 275K: estimate=12500, margin=round(12500*0.15)=1875
+    expect(estimateBonus('emerging', 275_000)).toEqual({ estimate: 12_500, margin: 1_875 })
   })
 
   it('clamps below tier minimum to bonus_min', () => {
-    expect(estimateBonus('underground', -500)).toBe(500)
+    expect(estimateBonus('underground', -500)).toEqual({ estimate: 500, margin: 75 })
   })
 
   it('clamps above tier maximum to bonus_max', () => {
-    expect(estimateBonus('underground', 100_000)).toBe(2_000)
+    expect(estimateBonus('underground', 100_000)).toEqual({ estimate: 2_000, margin: 300 })
+  })
+
+  it('returns zero estimate and margin for unknown tier', () => {
+    expect(estimateBonus('major' as never, 0)).toEqual({ estimate: 0, margin: 0 })
   })
 })
 

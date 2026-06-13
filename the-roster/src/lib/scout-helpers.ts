@@ -45,11 +45,13 @@ const TIER_RANGES: Partial<Record<Tier, {
   established: { min: 2_000_000, max: 10_000_000, bonusMin: 80_000, bonusMax: 300_000 },
 }
 
-export function estimateBonus(tier: Tier, monthlyListeners: number): number {
+export function estimateBonus(tier: Tier, monthlyListeners: number): { estimate: number; margin: number } {
   const r = TIER_RANGES[tier]
-  if (!r) return 0
+  if (!r) return { estimate: 0, margin: 0 }
   const position = Math.max(0, Math.min(1, (monthlyListeners - r.min) / (r.max - r.min)))
-  return Math.round(r.bonusMin + position * (r.bonusMax - r.bonusMin))
+  const estimate = Math.round(r.bonusMin + position * (r.bonusMax - r.bonusMin))
+  const margin = Math.round(estimate * 0.15)
+  return { estimate, margin }
 }
 
 export function momentumConfidence(
