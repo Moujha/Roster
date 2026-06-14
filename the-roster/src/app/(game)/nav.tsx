@@ -21,12 +21,14 @@ function repTier(rep: number) {
 interface NavProps {
   labelName: string
   reputation: number
+  leaderboardUnlocked: boolean
 }
 
-export function SideNav({ labelName, reputation }: NavProps) {
+export function SideNav({ labelName, reputation, leaderboardUnlocked }: NavProps) {
   const pathname = usePathname()
   const tier = repTier(reputation)
   const initial = labelName.slice(0, 2).toUpperCase() || 'LB'
+  const visibleItems = NAV_ITEMS.filter(item => item.href !== '/leaderboard' || leaderboardUnlocked)
 
   return (
     <aside style={{
@@ -42,7 +44,7 @@ export function SideNav({ labelName, reputation }: NavProps) {
 
       {/* Nav */}
       <nav style={{ padding: '8px 0', flex: 1 }}>
-        {NAV_ITEMS.map(item => {
+        {visibleItems.map(item => {
           const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
           return (
             <Link key={item.href} href={item.href} style={{
