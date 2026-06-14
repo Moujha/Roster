@@ -32,6 +32,27 @@ def get_all_artists() -> list[dict]:
     return result.data
 
 
+def get_artists_with_country() -> list[dict]:
+    """Return artists that have a country set: id, spotify_id, name, tier, country, is_regional_star."""
+    result = (
+        get_client()
+        .table("artists")
+        .select("id,spotify_id,name,tier,country,is_regional_star")
+        .not_.is_("country", "null")
+        .execute()
+    )
+    return result.data
+
+
+def bulk_set_regional_star(star_ids: list[str], non_star_ids: list[str]) -> None:
+    """Bulk update is_regional_star. star_ids → True, non_star_ids → False."""
+    client = get_client()
+    if star_ids:
+        client.table("artists").update({"is_regional_star": True}).in_("id", star_ids).execute()
+    if non_star_ids:
+        client.table("artists").update({"is_regional_star": False}).in_("id", non_star_ids).execute()
+
+
 def update_artist_tier(artist_id: str, tier: str) -> None:
     """Set artists.tier and artists.tier_updated_at to today."""
     get_client().table("artists").update({

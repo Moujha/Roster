@@ -10,15 +10,17 @@ Chart data is used to populate:
 """
 import httpx
 
-GLOBAL_WEEKLY_URL = (
+CHARTS_BASE_URL = (
     "https://charts-spotify-com-service.spotify.com"
-    "/public/v1/charts/regional/global/weekly/latest"
+    "/public/v1/charts/regional"
 )
 
+GLOBAL_WEEKLY_URL = f"{CHARTS_BASE_URL}/global/weekly/latest"
 
-def fetch_global_chart() -> list:
+
+def _fetch_chart(url: str) -> list:
     """
-    Fetches the Spotify Global Weekly Top 200.
+    Shared fetch logic for any Spotify regional chart URL.
 
     Returns a list of dicts:
       {"rank": int, "streams": int, "track_name": str,
@@ -27,7 +29,7 @@ def fetch_global_chart() -> list:
     Returns [] if the endpoint is unreachable or returns unexpected data.
     """
     try:
-        resp = httpx.get(GLOBAL_WEEKLY_URL, timeout=15.0, follow_redirects=True)
+        resp = httpx.get(url, timeout=15.0, follow_redirects=True)
         resp.raise_for_status()
         data = resp.json()
         entries = []
@@ -46,8 +48,23 @@ def fetch_global_chart() -> list:
             })
         return entries
     except Exception as exc:
-        print(f"  [charts] Could not fetch global chart: {exc}")
+        print(f"  [charts] Could not fetch {url}: {exc}")
         return []
+
+
+def fetch_global_chart() -> list:
+    """Fetches the Spotify Global Weekly Top 200."""
+    return _fetch_chart(GLOBAL_WEEKLY_URL)
+
+
+def fetch_country_chart(country_code: str) -> list:
+    """Fetches the Spotify Weekly Top 200 for a specific country.
+
+    country_code should be an ISO 3166-1 alpha-2 code (e.g. 'US', 'GB').
+    Returns [] if the chart is unavailable or the country is not supported.
+    """
+    url = f"{CHARTS_BASE_URL}/{country_code.lower()}/weekly/latest"
+    return _fetch_chart(url)
 
 
 def build_artist_chart_map(chart_entries: list) -> dict:

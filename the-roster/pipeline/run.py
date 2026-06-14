@@ -17,11 +17,14 @@ from compute_metrics import (
     compute_momentum,
     compute_stream_velocity_7d,
 )
+from fetchers.charts import fetch_country_chart
 from db import (
     get_all_artists,
+    get_artists_with_country,
     get_daily_streams_range,
     get_ml_n_days_ago,
     get_scrape_raw,
+    bulk_set_regional_star,
     update_artist_tier,
     upsert_artist_stats_daily,
 )
@@ -98,7 +101,57 @@ def run(run_date: date = None) -> int:
         processed += 1
         print(f"  OK  {name} (ml={ml}, streams={daily_streams}, momentum={momentum})")
 
+    update_regional_stars()
+
     return processed
+
+
+def update_regional_stars() -> None:
+    """Update is_regional_star for all artists based on their country's top-50 chart.
+
+    If a country chart fetch fails, that country is skipped — flags are never
+    cleared due to a network error.
+    """
+    artists = get_artists_with_country()
+    if not artists:
+        return
+
+    by_country: dict[str, list[dict]] = {}
+    for a in artists:
+        country = (a.get("country") or "").upper()
+        if country:
+            by_country.setdefault(country, []).append(a)
+
+    star_ids: list[str] = []
+    non_star_ids: list[str] = []
+
+    for country, country_artists in by_country.items():
+        entries = fetch_country_chart(country)
+        if not entries:
+            print(f"  [regional_star] {country}: no chart data, skipping")
+            continue
+
+        top50_spotify_ids = {
+            artist_id
+            for entry in entries
+            if (entry.get("rank") or 999) <= 50
+            for artist_id in entry.get("artist_ids", [])
+        }
+
+        stars = 0
+        for a in country_artists:
+            spotify_id = a.get("spotify_id")
+            if not spotify_id:
+                continue
+            if spotify_id in top50_spotify_ids:
+                star_ids.append(a["id"])
+                stars += 1
+            else:
+                non_star_ids.append(a["id"])
+        print(f"  [regional_star] {country}: {stars}/{len(country_artists)} stars")
+
+    bulk_set_regional_star(star_ids, non_star_ids)
+    print(f"  [regional_star] Done: {len(star_ids)} stars, {len(non_star_ids)} cleared")
 
 
 if __name__ == "__main__":
