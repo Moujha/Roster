@@ -241,7 +241,7 @@ function ArtistCard({ row, label }: { row: DiscoveryRow; label: string }) {
           {row.stream_velocity_7d >= 0 ? '↑' : '↓'} {Math.abs(row.stream_velocity_7d).toFixed(1)}% this week
         </div>
       )}
-      {row.stream_velocity_7d == null && row.momentum_score != null && (
+      {row.stream_velocity_7d == null && row.momentum_score != null && a.tier !== 'underground' && (
         <div className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9, marginTop: 2 }}>
           Score {row.momentum_score.toFixed(0)} / 100
         </div>

@@ -68,11 +68,14 @@ export default async function ArtistProfilePage({
   const statsForClient = (() => {
     if (!stats) return null
     const withUnderground = artist.tier === 'underground' ? { ...stats, momentum_score: null } : stats
-    if (!isEstablished) return { ...withUnderground, stream_velocity_7d: null, catalog_depth_score: null }
+    if (!isEstablished) return { ...withUnderground, stream_velocity_7d: null, listener_growth_28d: null, catalog_depth_score: null }
     return withUnderground
   })()
 
   let competitorScoutCount = 0
+  let genreTrend: { genreAvgVelocity: number; artistCount: number } | null = null
+  let regionalBreakout = false
+
   if (isVeteran) {
     const { count } = await createServiceClient()
       .from('scouts')
@@ -81,6 +84,41 @@ export default async function ArtistProfilePage({
       .neq('label_id', user.id)
       .is('completed_at', null)
     competitorScoutCount = count ?? 0
+
+    // Genre trend context and regional breakout signal (§9.6 Veteran unlocks)
+    const statsDate = statsRes.data?.date
+    if (statsDate) {
+      const [genreArtistsRes, countryArtistsRes] = await Promise.all([
+        artist.genre
+          ? supabase.from('artists').select('id').ilike('genre', `%${artist.genre}%`).neq('id', artist.id).neq('tier', 'major')
+          : Promise.resolve({ data: null }),
+        artist.country
+          ? supabase.from('artists').select('id').eq('country', artist.country).neq('id', artist.id).neq('tier', 'major')
+          : Promise.resolve({ data: null }),
+      ])
+
+      const [genreStatsRes, countryStatsRes] = await Promise.all([
+        genreArtistsRes.data?.length
+          ? supabase.from('artist_stats_daily').select('stream_velocity_7d').eq('date', statsDate)
+              .in('artist_id', genreArtistsRes.data.map((a: { id: string }) => a.id)).not('stream_velocity_7d', 'is', null)
+          : Promise.resolve({ data: null }),
+        countryArtistsRes.data?.length
+          ? supabase.from('artist_stats_daily').select('stream_velocity_7d').eq('date', statsDate)
+              .in('artist_id', countryArtistsRes.data.map((a: { id: string }) => a.id)).not('stream_velocity_7d', 'is', null)
+          : Promise.resolve({ data: null }),
+      ])
+
+      if (genreStatsRes.data?.length) {
+        const avg = genreStatsRes.data.reduce((s: number, r: { stream_velocity_7d: number | null }) => s + (r.stream_velocity_7d ?? 0), 0) / genreStatsRes.data.length
+        genreTrend = { genreAvgVelocity: avg, artistCount: genreStatsRes.data.length }
+      }
+
+      const artistVelocity = stats?.stream_velocity_7d ?? null
+      if (countryStatsRes.data?.length && artistVelocity !== null) {
+        const countryAvg = countryStatsRes.data.reduce((s: number, r: { stream_velocity_7d: number | null }) => s + (r.stream_velocity_7d ?? 0), 0) / countryStatsRes.data.length
+        regionalBreakout = artistVelocity > countryAvg + 15 && artistVelocity > 10
+      }
+    }
   }
 
   const scout = scoutRes.data as Scout | null
@@ -137,6 +175,8 @@ export default async function ArtistProfilePage({
       watcherCount={watcherCount}
       labelReputation={labelReputation}
       competitorScoutCount={competitorScoutCount}
+      genreTrend={genreTrend}
+      regionalBreakout={regionalBreakout}
     />
   )
 }

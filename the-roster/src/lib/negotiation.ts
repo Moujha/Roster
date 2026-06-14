@@ -102,12 +102,12 @@ export function negotiationHint(weights: PriorityWeights): string {
     freedom: [
       'Self-released last two projects. Values creative independence above all.',
       'Prioritises creative control — lead with the split.',
-      'Has declined higher-value offers before to protect artistic terms.',
+      'Has declined higher-value offers to protect creative control and independence.',
     ],
     commitment: [
       'Mid-momentum and looking for a stable long-term label partner.',
       'Recently dropped by previous label — stability is the priority.',
-      'Seeking consistent label presence through their next arc.',
+      'Seeking long-term stability — wants a label partner for their next arc.',
     ],
   }
 

@@ -107,8 +107,8 @@ function buildSignalTags(
     if (scoutReport.negotiationHint) {
       const hint = scoutReport.negotiationHint.toLowerCase()
       if (/freedom|control|independent|split/i.test(hint)) tags.push({ text: 'Scout: Freedom-weighted', scout: true })
-      else if (/money|bonus|guarantee|financial/i.test(hint)) tags.push({ text: 'Scout: Money-weighted', scout: true })
-      else if (/commitment|term|long.term|stability/i.test(hint)) tags.push({ text: 'Scout: Commitment-weighted', scout: true })
+      else if (/money|bonus|guarantee|financial|market value/i.test(hint)) tags.push({ text: 'Scout: Money-weighted', scout: true })
+      else if (/commitment|term|long.term|stability|partner/i.test(hint)) tags.push({ text: 'Scout: Commitment-weighted', scout: true })
     }
   }
 
@@ -272,7 +272,7 @@ type CounterOffer = {
 export default function ArtistProfileClient({
   artist, stats, spark, signedByCount, undergroundSignal, label, rosterCount,
   scout, activeScoutCount, scoutReport, spotifyData, isWatching, watchers, watcherCount,
-  labelReputation, competitorScoutCount,
+  labelReputation, competitorScoutCount, genreTrend, regionalBreakout,
 }: {
   artist: Artist
   stats: ArtistStats | null
@@ -290,6 +290,8 @@ export default function ArtistProfileClient({
   watcherCount: number
   labelReputation: number
   competitorScoutCount: number
+  genreTrend: { genreAvgVelocity: number; artistCount: number } | null
+  regionalBreakout: boolean
 }) {
   const router = useRouter()
   const tierColor = TIER_COLORS[artist.tier] ?? 'var(--ink-mid)'
@@ -304,6 +306,8 @@ export default function ArtistProfileClient({
   const [submitError, setSubmitError] = useState('')
   const [scouting, setScouting] = useState(false)
   const [scoutError, setScoutError] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState('')
   const [watching, setWatching] = useState(isWatching)
   const [watchLoading, setWatchLoading] = useState(false)
 
@@ -393,6 +397,18 @@ export default function ArtistProfileClient({
     setScouting(false)
     if (!res.ok) {
       setScoutError((await res.json()).error ?? 'Scout failed')
+      return
+    }
+    router.refresh()
+  }
+
+  async function handleCancelScout() {
+    if (!scout) return
+    setCancelling(true); setCancelError('')
+    const res = await fetch(`/api/scouts/${scout.id}`, { method: 'DELETE' })
+    setCancelling(false)
+    if (!res.ok) {
+      setCancelError((await res.json()).error ?? 'Cancel failed')
       return
     }
     router.refresh()
@@ -535,6 +551,11 @@ export default function ArtistProfileClient({
             <span className="tag" style={{ color: tierColor, border: `1px solid ${tierColor}`, padding: '2px 7px', fontSize: 9, background: `${tierColor}18` }}>
               {artist.tier.toUpperCase()}
             </span>
+            {artist.is_regional_star && (
+              <span className="tag" style={{ color: 'var(--amber)', border: '1px solid var(--amber)', padding: '2px 7px', fontSize: 9, background: 'rgba(255,176,32,0.08)' }}>
+                REGIONAL STAR
+              </span>
+            )}
             {artist.country && (
               <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, border: '1px solid var(--line)', padding: '2px 6px' }}>
                 {artist.country}
@@ -589,6 +610,15 @@ export default function ArtistProfileClient({
                   </div>
                 )
               })()}
+              {labelReputation >= 600 && genreTrend && (
+                <div>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>GENRE AVG VEL.</div>
+                  <div className="display" style={{ fontSize: 22, color: genreTrend.genreAvgVelocity >= 0 ? 'var(--lime)' : 'var(--rose)', lineHeight: 1 }}>
+                    {genreTrend.genreAvgVelocity >= 0 ? '+' : ''}{genreTrend.genreAvgVelocity.toFixed(1)}%
+                  </div>
+                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 8, marginTop: 2 }}>{genreTrend.artistCount} ARTISTS</div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -621,6 +651,11 @@ export default function ArtistProfileClient({
           {labelReputation >= 600 && competitorScoutCount > 0 && (
             <div className="tag" style={{ color: 'var(--amber)', fontSize: 9, marginTop: 4 }}>
               {competitorScoutCount} COMPETITOR{competitorScoutCount !== 1 ? 'S' : ''} SCOUTING
+            </div>
+          )}
+          {labelReputation >= 600 && regionalBreakout && (
+            <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, marginTop: 4, border: '1px solid var(--lime)', padding: '1px 4px' }}>
+              REGIONAL BREAKOUT
             </div>
           )}
         </div>
@@ -776,13 +811,29 @@ export default function ArtistProfileClient({
             {scoutError && <span className="tag" style={{ color: 'var(--rose)', fontSize: 9 }}>{scoutError}</span>}
           </div>
         ) : !scout.completed_at ? (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '8px 14px', border: '1px solid var(--amber)', background: 'rgba(255,176,32,0.08)',
-          }}>
-            <span className="tag" style={{ color: 'var(--amber)', fontSize: 10 }}>
-              SCOUTING · {scoutWeeksLeft} WEEK{scoutWeeksLeft !== 1 ? 'S' : ''} REMAINING
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px', border: '1px solid var(--amber)', background: 'rgba(255,176,32,0.08)',
+            }}>
+              <span className="tag" style={{ color: 'var(--amber)', fontSize: 10 }}>
+                SCOUTING · {scoutWeeksLeft} WEEK{scoutWeeksLeft !== 1 ? 'S' : ''} REMAINING
+              </span>
+            </div>
+            <button
+              onClick={handleCancelScout}
+              disabled={cancelling}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9,
+                padding: '5px 10px', border: '1px solid var(--line)',
+                color: 'var(--ink-low)', background: 'transparent',
+                cursor: cancelling ? 'not-allowed' : 'pointer', alignSelf: 'flex-start',
+                opacity: cancelling ? 0.6 : 1,
+              }}
+            >
+              {cancelling ? 'CANCELLING...' : 'CANCEL SCOUT'}
+            </button>
+            {cancelError && <span className="tag" style={{ color: 'var(--rose)', fontSize: 9 }}>{cancelError}</span>}
           </div>
         ) : scoutReport ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

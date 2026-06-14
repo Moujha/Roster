@@ -1,4 +1,4 @@
-export const BASE_RATE = 0.000175
+export const BASE_RATE = 0.035
 export const DEV_BUDGET_PCT = 0.12  // 12% of weekly royalties
 
 export type DevTier = 'none' | 'light' | 'standard' | 'heavy'

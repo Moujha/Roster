@@ -30,6 +30,11 @@ function ArtistCard({ artist, metric, isScouting = false }: {
             {artist.genre.toUpperCase().slice(0, 16)}
           </span>
         )}
+        {artist.is_regional_star && (
+          <span className="tag" style={{ color: 'var(--amber)', border: '1px solid var(--amber)', padding: '1px 4px', fontSize: 9 }}>
+            REGIONAL STAR
+          </span>
+        )}
         {isScouting && (
           <span className="tag" style={{ color: 'var(--amber)', border: '1px solid var(--amber)', padding: '1px 4px', fontSize: 9 }}>
             SCOUTING
@@ -107,7 +112,7 @@ async function getOnRamps(userId: string) {
   if (label?.genre_1) {
     const genres = [label.genre_1, label.genre_2].filter(Boolean) as string[]
     const orFilter = genres.map(g => `genre.ilike.%${g}%`).join(',')
-    const { data: gArtists } = await supabase.from('artists').select('id').or(orFilter).neq('tier', 'major')
+    const { data: gArtists } = await supabase.from('artists').select('id').or(orFilter).neq('tier', 'major').neq('tier', 'underground')
     if (gArtists?.length) {
       const ids = gArtists.map(a => a.id)
       const { data: mStats } = await supabase.from('artist_stats_daily')

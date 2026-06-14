@@ -53,12 +53,12 @@ export async function GET(
   const watchlist = (entries as unknown as { id: string; added_at: string; artist_id: string; artists: { id: string; name: string; tier: string; spotify_id: string } | null }[] ?? []).map((e: {
     id: string; added_at: string; artist_id: string;
     artists: { id: string; name: string; tier: string; spotify_id: string } | null
-  }) => ({
-    id: e.id,
-    added_at: e.added_at,
-    artist: e.artists ?? null,
-    stats: statsMap.get(e.artist_id) ?? null,
-  }))
+  }) => {
+    const raw = statsMap.get(e.artist_id) ?? null
+    const isUnderground = e.artists?.tier === 'underground'
+    const stats = raw ? { ...raw, momentum_score: isUnderground ? null : raw.momentum_score } : null
+    return { id: e.id, added_at: e.added_at, artist: e.artists ?? null, stats }
+  })
 
   return Response.json({ label, watchlist })
 }

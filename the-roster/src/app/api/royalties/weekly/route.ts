@@ -43,7 +43,7 @@ async function handler(request: Request) {
   // Batch-fetch artist names + tiers + country for event writing, tier-up detection, and home crowd bonus
   const { data: artistRows } = await supabase
     .from('artists')
-    .select('id, name, tier, tier_updated_at, country')
+    .select('id, name, tier, tier_updated_at, country, is_regional_star')
     .in('id', contracts.map(c => c.artist_id))
   const artistMap = new Map((artistRows ?? []).map(a => [a.id, a]))
 
@@ -144,10 +144,11 @@ async function handler(request: Request) {
     }
 
     const combined = computeCombinedMultiplier(playlistTier, releaseMultiplier)
-    // Home Crowd bonus (§3.5.3): 1.15× when label and artist share the same country
-    const artistCountry = artistMap.get(c.artist_id)?.country ?? null
+    // Home Crowd bonus (§3.5.3): 1.15× for Regional Star artists when label shares country
+    const artistEntry = artistMap.get(c.artist_id)
+    const artistCountry = artistEntry?.country ?? null
     const labelCountry = labelCountryMap.get(c.label_id) ?? null
-    const homeCrowd = artistCountry && labelCountry && artistCountry === labelCountry ? 1.15 : 1.0
+    const homeCrowd = (artistEntry?.is_regional_star ?? false) && artistCountry && labelCountry && artistCountry === labelCountry ? 1.15 : 1.0
     const royalties = Math.round(baseRoyalties * combined * homeCrowd * 100) / 100
 
     // Dev spend (playlist + social, capped at 100% of dev budget)
@@ -321,7 +322,7 @@ async function handler(request: Request) {
 
   if (scoutArtistIds.length) {
     const { data: scoutArtists } = await supabase
-      .from('artists').select('id, name, tier, tier_updated_at, country').in('id', scoutArtistIds)
+      .from('artists').select('id, name, tier, tier_updated_at, country, is_regional_star').in('id', scoutArtistIds)
     for (const a of scoutArtists ?? []) artistMap.set(a.id, a)
   }
 
@@ -342,6 +343,61 @@ async function handler(request: Request) {
       artist_name: artistName,
       payload: { weeks_taken: durationWeeks },
     })
+  }
+
+  // ── Pass 5: breaking alerts for watchlisted (unsigned) artists ──────────────
+  const { data: watchlistRows } = await supabase
+    .from('watchlists')
+    .select('label_id, artist_id')
+
+  const activeContractKey = new Set(contracts.map(c => `${c.label_id}:${c.artist_id}`))
+  const watchlistEntries = (watchlistRows ?? []).filter(
+    w => !activeContractKey.has(`${w.label_id}:${w.artist_id}`),
+  )
+  const watchlistArtistIds = [...new Set(watchlistEntries.map(w => w.artist_id))]
+
+  if (watchlistArtistIds.length) {
+    const [{ data: wStats }, { data: wArtists }] = await Promise.all([
+      supabase.from('artist_stats_daily')
+        .select('artist_id, stream_velocity_7d')
+        .eq('date', statsDate)
+        .in('artist_id', watchlistArtistIds)
+        .not('stream_velocity_7d', 'is', null),
+      supabase.from('artists')
+        .select('id, name, tier')
+        .in('id', watchlistArtistIds),
+    ])
+
+    const velocityMap = new Map(
+      (wStats ?? []).map(s => [s.artist_id, s.stream_velocity_7d as number]),
+    )
+    const wArtistMap = new Map((wArtists ?? []).map(a => [a.id, a]))
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000).toISOString()
+
+    for (const w of watchlistEntries) {
+      const velocity = velocityMap.get(w.artist_id) ?? null
+      if (velocity === null) continue
+      const artist = wArtistMap.get(w.artist_id)
+      if (!artist) continue
+      const threshold = artist.tier === 'underground' ? 50 : 25
+      if (velocity <= threshold) continue
+
+      const { count: recent } = await supabase
+        .from('label_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('label_id', w.label_id)
+        .eq('event_type', 'breaking_alert')
+        .contains('payload', { artist_id: w.artist_id })
+        .gte('created_at', sevenDaysAgo)
+      if ((recent ?? 0) > 0) continue
+
+      await supabase.from('label_events').insert({
+        label_id: w.label_id,
+        event_type: 'breaking_alert',
+        artist_name: artist.name,
+        payload: { artist_id: w.artist_id, velocity, threshold },
+      })
+    }
   }
 
   return Response.json({ processed, expired, date: today })

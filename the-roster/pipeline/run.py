@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 from datetime import date, timedelta
-from decimal import Decimal
 
 from compute_metrics import (
     classify_tier,
@@ -19,19 +18,13 @@ from compute_metrics import (
     compute_stream_velocity_7d,
 )
 from db import (
-    apply_royalties,
-    expire_contracts,
-    get_active_contracts,
     get_all_artists,
     get_daily_streams_range,
     get_ml_n_days_ago,
     get_scrape_raw,
     update_artist_tier,
     upsert_artist_stats_daily,
-    write_label_history,
-    get_client,
 )
-from royalties import compute_weekly_royalties
 
 
 def run(run_date: date = None) -> int:
@@ -105,63 +98,7 @@ def run(run_date: date = None) -> int:
         processed += 1
         print(f"  OK  {name} (ml={ml}, streams={daily_streams}, momentum={momentum})")
 
-    # Contract expiry check (runs daily after metrics)
-    expired_ids = expire_contracts()
-    if expired_ids:
-        client = get_client()
-        for contract_id in expired_ids:
-            contract_row = (
-                client.table("contracts")
-                .select("*")
-                .eq("id", contract_id)
-                .single()
-                .execute()
-            ).data
-            artist_row = (
-                client.table("artists")
-                .select("id,name,tier")
-                .eq("id", contract_row["artist_id"])
-                .single()
-                .execute()
-            ).data
-            latest_scrape = get_scrape_raw(contract_row["artist_id"], run_date)
-            listeners_at_end = (
-                int(latest_scrape["monthly_listeners"])
-                if latest_scrape and latest_scrape.get("monthly_listeners") is not None
-                else None
-            )
-            write_label_history(contract_row, artist_row, listeners_at_end, reason="natural")
-            print(f"  EXPIRED contract {contract_id} for {artist_row['name']}")
-
-    # Sunday royalty run
-    if run_date.weekday() == 6:
-        run_royalties(run_date)
-
     return processed
-
-
-def run_royalties(week_end: date) -> None:
-    """Compute and apply weekly royalties for all active contracts.
-
-    week_end must be a Sunday (weekday() == 6).
-    """
-    contracts = get_active_contracts()
-    print(f"  ROYALTIES: processing {len(contracts)} active contracts for week ending {week_end}")
-
-    for contract in contracts:
-        artist_id = contract["artist_id"]
-        label_id  = contract["label_id"]
-        contract_id = contract["id"]
-        rev_split = float(contract["rev_split_label_pct"])
-
-        weekly_streams = sum(
-            get_daily_streams_range(artist_id, week_end - timedelta(days=6), week_end)
-        )
-        royalties = compute_weekly_royalties(weekly_streams, rev_split)
-
-        if royalties > Decimal('0'):
-            apply_royalties(contract_id, label_id, royalties)
-            print(f"    contract {contract_id}: {weekly_streams} streams -> ${royalties}")
 
 
 if __name__ == "__main__":

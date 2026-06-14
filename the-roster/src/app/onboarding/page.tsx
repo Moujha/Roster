@@ -113,7 +113,7 @@ export default function OnboardingPage() {
       alignItems: 'center', justifyContent: 'center', padding: 24,
       fontFamily: 'Inter, sans-serif',
     }}>
-      <div style={{ width: '100%', maxWidth: 380 }}>
+      <div style={{ width: '100%', maxWidth: step === 4 && suggestions.length > 0 ? 560 : 380 }}>
         {/* Logo + progress */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div className="display" style={{ fontSize: 42, color: 'var(--lime)', letterSpacing: 4 }}>ROSTER</div>
@@ -232,7 +232,7 @@ export default function OnboardingPage() {
             {suggestions.length > 0 ? (
               <>
                 <div style={{ color: 'var(--ink-mid)', fontSize: 11, marginBottom: 12 }}>Artists picked for your label</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
                   {suggestions.map(s => {
                     const tc = TIER_COLORS[s.tier] ?? 'var(--ink-mid)'
                     return (
@@ -241,17 +241,15 @@ export default function OnboardingPage() {
                         onClick={() => router.push(`/artist/${s.spotify_id}`)}
                         style={{
                           background: 'var(--bg-panel)', border: '1px solid var(--line)',
-                          padding: '10px 12px', cursor: 'pointer', display: 'flex',
-                          justifyContent: 'space-between', alignItems: 'center',
+                          padding: '12px 10px', cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', gap: 6,
                         }}
                       >
-                        <div>
-                          <div style={{ color: 'var(--ink-hi)', fontSize: 13 }}>{s.name}</div>
-                          {s.hook && (
-                            <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, marginTop: 3 }}>{s.hook}</div>
-                          )}
-                        </div>
-                        <span className="tag" style={{ color: tc, border: `1px solid ${tc}`, padding: '2px 6px', fontSize: 8, background: `${tc}18` }}>
+                        <div style={{ color: 'var(--ink-hi)', fontSize: 13, lineHeight: 1.2 }}>{s.name}</div>
+                        {s.hook && (
+                          <div className="tag" style={{ color: 'var(--lime)', fontSize: 9 }}>{s.hook}</div>
+                        )}
+                        <span className="tag" style={{ color: tc, border: `1px solid ${tc}`, padding: '2px 5px', fontSize: 8, background: `${tc}18`, alignSelf: 'flex-start', marginTop: 'auto' }}>
                           {s.tier.toUpperCase()}
                         </span>
                       </div>

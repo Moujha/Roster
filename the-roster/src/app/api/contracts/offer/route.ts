@@ -57,14 +57,16 @@ export async function POST(request: Request) {
   const service = createServiceClient()
   const { data: artist } = await service
     .from('artists')
-    .select('id, tier, name, priority_money, priority_freedom, priority_commitment, negotiation_target')
+    .select('id, tier, name, is_regional_star, priority_money, priority_freedom, priority_commitment, negotiation_target')
     .eq('id', artist_id)
     .single()
   if (!artist) return Response.json({ error: 'Artist not found' }, { status: 404 })
-  if (artist.tier === 'major')
+  if (artist.tier === 'major' && !artist.is_regional_star)
     return Response.json({ error: 'Major artists are not signable' }, { status: 400 })
 
-  const range = BONUS_RANGES[artist.tier]
+  // Regional Stars at major tier use established pricing (§3.5.3)
+  const pricingTier = artist.tier === 'major' && artist.is_regional_star ? 'established' : artist.tier
+  const range = BONUS_RANGES[pricingTier]
   if (range && (bonus < range[0] || bonus > range[1]))
     return Response.json({
       error: `Signing bonus out of range for ${artist.tier} ($${range[0].toLocaleString()}–$${range[1].toLocaleString()})`,
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
 
   // Validate negotiation round context
   let round = 1
+  let storedCounter: ContractOffer | null = null
   if (negotiation_id) {
     const { data: existingNeg } = await supabase
       .from('negotiations').select('*').eq('id', negotiation_id).eq('label_id', user.id).single()
@@ -101,9 +104,11 @@ export async function POST(request: Request) {
     if (existingNeg.status !== 'countered')
       return Response.json({ error: 'No pending counter on this negotiation' }, { status: 409 })
     round = 2
+    if (accept_counter) storedCounter = existingNeg.counter_offer as ContractOffer
   }
 
-  const offer: ContractOffer = { bonus, rev_split_label_pct, term_months }
+  // Use the server-stored counter terms when player accepts — prevents client spoofing
+  const offer: ContractOffer = storedCounter ?? { bonus, rev_split_label_pct, term_months }
   const weights: PriorityWeights = {
     money:      artist.priority_money ?? 0.34,
     freedom:    artist.priority_freedom ?? 0.33,
@@ -195,23 +200,24 @@ async function createContract(
 
   if (error || !contract) return null
 
-  const ops: unknown[] = [
-    supabase.from('labels').update({ treasury: currentTreasury - offer.bonus }).eq('id', labelId),
+  const labelUpdate: Record<string, unknown> = { treasury: currentTreasury - offer.bonus }
+  if (isResign) labelUpdate.reputation = Math.min(1000, currentReputation + 10)
+
+  await Promise.all([
+    supabase.from('labels').update(labelUpdate).eq('id', labelId),
     supabase.from('label_events').insert({
       label_id: labelId,
       event_type: 'artist_signed',
       artist_name: artist.name,
       payload: { months: offer.term_months, split_pct: offer.rev_split_label_pct, signing_bonus: offer.bonus },
     }),
-  ]
-  if (isResign) {
-    ops.push(
-      supabase.from('labels')
-        .update({ reputation: Math.min(1000, currentReputation + 10) })
-        .eq('id', labelId)
-    )
-  }
-  await Promise.all(ops)
+    // Free the scout slot — GDD §9.4.4: slot frees when player signs
+    supabase.from('scouts')
+      .update({ completed_at: today })
+      .eq('label_id', labelId)
+      .eq('artist_id', artist.id)
+      .is('completed_at', null),
+  ])
 
   return contract
 }

@@ -24,6 +24,7 @@ export interface Artist {
   country: string | null
   tier: Tier
   tier_updated_at: string | null
+  is_regional_star: boolean
 }
 
 export interface ArtistStats {
@@ -51,6 +52,7 @@ export interface Contract {
   baseline_growth_pct: number | null
   royalties_earned: number
   dev_spend_total: number
+  royalties_paid_through: string | null
   created_at: string
 }
 

@@ -31,23 +31,23 @@ describe('computeEngagementMultiplier', () => {
 
 describe('computeWeeklyRoyalties', () => {
   it('computes baseline with null streams (multiplier = 1.0)', () => {
-    // 100K × 0.000175 × 0.5 × 1.0 = 8.75
-    expect(computeWeeklyRoyalties(100_000, 50, null)).toBe(8.75)
+    // 100K × 0.035 × 0.5 × 1.0 = 1750
+    expect(computeWeeklyRoyalties(100_000, 50, null)).toBe(1750)
   })
 
   it('doubles royalties for 2× engagement', () => {
-    // multiplier = 2.0 → 8.75 × 2 = 17.50
-    expect(computeWeeklyRoyalties(100_000, 50, 50_000)).toBe(17.5)
+    // multiplier = 2.0 → 1750 × 2 = 3500
+    expect(computeWeeklyRoyalties(100_000, 50, 50_000)).toBe(3500)
   })
 
   it('caps at 3× for extreme engagement', () => {
-    // multiplier = 3.0 → 8.75 × 3 = 26.25
-    expect(computeWeeklyRoyalties(100_000, 50, 200_000)).toBe(26.25)
+    // multiplier = 3.0 → 1750 × 3 = 5250
+    expect(computeWeeklyRoyalties(100_000, 50, 200_000)).toBe(5250)
   })
 
   it('applies rev split correctly', () => {
-    // 100K × 0.000175 × 0.25 = 4.375 → rounded to 4.38
-    expect(computeWeeklyRoyalties(100_000, 25, null)).toBe(4.38)
+    // 100K × 0.035 × 0.25 = 875
+    expect(computeWeeklyRoyalties(100_000, 25, null)).toBe(875)
   })
 })
 

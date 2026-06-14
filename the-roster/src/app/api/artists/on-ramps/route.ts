@@ -42,6 +42,7 @@ export async function GET() {
       .select('id')
       .or(orFilter)
       .neq('tier', 'major')
+      .neq('tier', 'underground')
     if (gArtists?.length) {
       const { data: gStats } = await supabase
         .from('artist_stats_daily')
@@ -70,7 +71,7 @@ export async function GET() {
       .from('artists')
       .select('id')
       .eq('country', label.country)
-      .neq('tier', 'major')
+      .or('tier.neq.major,is_regional_star.eq.true')
     if (rArtists?.length) {
       const { data: rStats } = await supabase
         .from('artist_stats_daily')
