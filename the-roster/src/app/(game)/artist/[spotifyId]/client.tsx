@@ -76,46 +76,6 @@ function artistVoice(tier: string, phase: VoicePhase): string {
 
 // ── Act 1: Reading the Room helpers ──────────────────────────────────────────
 
-type SignalTag = { text: string; scout: boolean }
-
-function buildSignalTags(
-  artist: { tier: string; country: string | null },
-  stats: { stream_velocity_7d: number | null; listener_growth_28d: number | null } | null,
-  scoutReport: { pattern: string; momentum: string; negotiationHint: string | null } | null,
-  signedByCount: number,
-  labelReputation: number,
-): SignalTag[] {
-  const tags: SignalTag[] = []
-
-  // Public data tags (neutral grey)
-  if (signedByCount === 0) tags.push({ text: 'Unsigned', scout: false })
-  else if (signedByCount === 1) tags.push({ text: 'Signed by 1 label', scout: false })
-  else tags.push({ text: `Signed by ${signedByCount} labels`, scout: false })
-
-  if (labelReputation >= 250 && stats?.stream_velocity_7d != null) {
-    if (stats.stream_velocity_7d >= 20) tags.push({ text: `+${stats.stream_velocity_7d.toFixed(0)}% velocity this week`, scout: false })
-    else if (stats.stream_velocity_7d <= -10) tags.push({ text: `${stats.stream_velocity_7d.toFixed(0)}% velocity this week`, scout: false })
-  }
-  if (stats?.listener_growth_28d != null && Math.abs(stats.listener_growth_28d) >= 10) {
-    const dir = stats.listener_growth_28d > 0 ? '+' : ''
-    tags.push({ text: `${dir}${stats.listener_growth_28d.toFixed(0)}% listeners (28d)`, scout: false })
-  }
-
-  // Scout report tags (info blue)
-  if (scoutReport) {
-    tags.push({ text: `Pattern: ${scoutReport.pattern.charAt(0).toUpperCase() + scoutReport.pattern.slice(1)}`, scout: true })
-    tags.push({ text: `Momentum: ${scoutReport.momentum.charAt(0).toUpperCase() + scoutReport.momentum.slice(1)}`, scout: true })
-    if (scoutReport.negotiationHint) {
-      const hint = scoutReport.negotiationHint.toLowerCase()
-      if (/freedom|control|independent|split/i.test(hint)) tags.push({ text: 'Scout: Freedom-weighted', scout: true })
-      else if (/money|bonus|guarantee|financial|market value/i.test(hint)) tags.push({ text: 'Scout: Money-weighted', scout: true })
-      else if (/commitment|term|long.term|stability|partner/i.test(hint)) tags.push({ text: 'Scout: Commitment-weighted', scout: true })
-    }
-  }
-
-  return tags
-}
-
 function generateNarrative(
   artist: { name: string; tier: string; genre: string | null; country: string | null },
   stats: { monthly_listeners: number | null; stream_velocity_7d: number | null; listener_growth_28d: number | null } | null,
