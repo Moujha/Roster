@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { DevAllocation, ReleaseAmplification } from '@/lib/types'
 import { PLAYLIST_MULTIPLIERS, SOCIAL_FLOOR_PCTS, DEV_COST_PCT, RELEASE_PEAKS, RELEASE_COST_MULT, type DevTier } from '@/lib/royalty'
+import { InfoTip } from '@/components/info-tip'
 
 type SpendTier = 'light' | 'standard' | 'heavy'
 
@@ -80,6 +81,8 @@ export function DevAllocPanel({ contractId, alloc, estWeeklyIncome, activeReleas
     }
   }
 
+  const isMonday = new Date().getDay() === 1
+
   return (
     <div style={{ borderTop: '1px solid var(--line-soft)', paddingTop: 8 }}>
       <button
@@ -92,6 +95,11 @@ export function DevAllocPanel({ contractId, alloc, estWeeklyIncome, activeReleas
         <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>
           DEVELOP {open ? '▲' : '▼'}
         </span>
+        {isMonday && playlist === 'none' && social === 'none' && (
+          <span className="tag" style={{ color: 'var(--lime)', fontSize: 8, border: '1px solid rgba(200,255,58,0.35)', padding: '1px 6px', background: 'rgba(200,255,58,0.06)' }}>
+            BUDGET AVAILABLE
+          </span>
+        )}
         {alloc && (alloc.playlist_tier !== 'none' || alloc.social_push_tier !== 'none') && (
           <span className="tag" style={{ color: 'var(--cyan)', fontSize: 9, background: 'rgba(0,200,220,0.08)', padding: '1px 5px', border: '1px solid var(--cyan)' }}>
             {alloc.playlist_tier !== 'none' ? `PL:${TIER_LABELS[alloc.playlist_tier]}` : ''}
@@ -128,8 +136,9 @@ export function DevAllocPanel({ contractId, alloc, estWeeklyIncome, activeReleas
 
           {/* Playlist pitching */}
           <div style={{ marginBottom: 12 }}>
-            <div className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9, marginBottom: 6 }}>
-              PLAYLIST PITCHING — stream volume boost
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+              <span className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9 }}>PLAYLIST PITCHING — stream volume boost</span>
+              <InfoTip text="Boosts total stream volume for 7 days. Multiplier applies to your royalty calculation. Re-allocate each Monday to keep it active." />
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {(['none', 'light', 'standard', 'heavy'] as DevTier[]).map(t => (
@@ -164,8 +173,9 @@ export function DevAllocPanel({ contractId, alloc, estWeeklyIncome, activeReleas
 
           {/* Social push */}
           <div style={{ marginBottom: 14 }}>
-            <div className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9, marginBottom: 6 }}>
-              SOCIAL PUSH — velocity floor (defensive)
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+              <span className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9 }}>SOCIAL PUSH — velocity floor (defensive)</span>
+              <InfoTip text="Sets a floor on how far streams can drop week-over-week. Doesn't boost revenue — it protects against decline. Use when momentum is at risk." />
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {(['none', 'light', 'standard', 'heavy'] as DevTier[]).map(t => (
@@ -232,8 +242,9 @@ export function DevAllocPanel({ contractId, alloc, estWeeklyIncome, activeReleas
 
           {/* Release amplification */}
           <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
-            <div className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9, marginBottom: 8 }}>
-              RELEASE AMPLIFICATION — treasury spend · 14-day decay
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+              <span className="tag" style={{ color: 'var(--ink-mid)', fontSize: 9 }}>RELEASE AMPLIFICATION — treasury spend · 14-day decay</span>
+              <InfoTip text="One-time treasury spend when a new track drops. Peaks immediately and decays to 1× over 14 days. Stacks with playlist pitching up to the 1.60× hard cap." />
             </div>
 
             {activeRelease ? (
