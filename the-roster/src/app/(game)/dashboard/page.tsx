@@ -8,6 +8,7 @@ import { describeEvent, relativeTime } from '@/lib/activity-helpers'
 import CountrySetup from './country-setup'
 import WeeklyReveal from './weekly-reveal'
 import ContractExpiryScreen from './contract-expiry-screen'
+import { InfoTip } from '@/components/info-tip'
 
 type ContractRow = Contract & { artists: { name: string; tier: string; spotify_id: string } }
 type ScoutRow = Scout & { artists: { name: string; tier: string; spotify_id: string } }
@@ -169,6 +170,32 @@ async function getData() {
   const discoveryRows = (discoveryRes.data ?? []) as unknown as DiscoveryRow[]
   const signedArtistIds = new Set(activeArtistIds)
 
+  // Breaking alert: check recent events first, fall back to targeted lookup
+  const cutoff48h = new Date(Date.now() - 48 * 3600_000)
+  const latestBreakingAlert = events.find(
+    e => e.event_type === 'breaking_alert' && new Date(e.created_at) > cutoff48h,
+  ) ?? null
+
+  let breakingAlertSpotifyId: string | null = null
+  if (latestBreakingAlert) {
+    const payload = latestBreakingAlert.payload as { artist_id?: string } | null
+    const alertArtistId = payload?.artist_id ?? null
+    if (alertArtistId) {
+      const fromContract = active.find(c => c.artist_id === alertArtistId)
+      if (fromContract) {
+        breakingAlertSpotifyId = fromContract.artists.spotify_id
+      } else {
+        const fromDiscovery = discoveryRows.find(r => r.artist_id === alertArtistId)
+        if (fromDiscovery?.artists?.spotify_id) {
+          breakingAlertSpotifyId = fromDiscovery.artists.spotify_id
+        } else {
+          const { data: alertArtist } = await supabase.from('artists').select('spotify_id').eq('id', alertArtistId).maybeSingle()
+          breakingAlertSpotifyId = alertArtist?.spotify_id ?? null
+        }
+      }
+    }
+  }
+
   const eligible = discoveryRows.filter(r => {
     const a = r.artists
     return a && a.tier !== 'major' && !signedArtistIds.has(r.artist_id)
@@ -217,6 +244,7 @@ async function getData() {
     myLabelId: user.id,
     weeklyRoyaltyEvents, weekEnd,
     expiredListenerMap,
+    latestBreakingAlert, breakingAlertSpotifyId,
   }
 }
 
@@ -266,10 +294,16 @@ export default async function DashboardPage() {
     leaderboard, myLabelId,
     weeklyRoyaltyEvents, weekEnd,
     expiredListenerMap,
+    latestBreakingAlert, breakingAlertSpotifyId,
   } = data
 
   const rep = repTier(label.reputation)
   const repBarPct = label.reputation === 0 ? 0 : Math.min(100, Math.round((label.reputation / rep.next) * 100))
+
+  const hasUnallocatedBudget = active.length > 0 && active.some(c => {
+    const a = allocMap.get(c.id)
+    return !a || (a.playlist_tier === 'none' && a.social_push_tier === 'none')
+  })
 
   return (
     <div style={{ padding: 24, color: 'var(--ink)', fontFamily: 'Inter, sans-serif', maxWidth: 1200 }}>
@@ -321,9 +355,17 @@ export default async function DashboardPage() {
               })}
             </div>
             {isMonday && (
-              <span className="tag" style={{ color: 'var(--lime)', fontSize: 9, border: '1px solid rgba(200,255,58,0.4)', padding: '2px 8px', background: 'rgba(200,255,58,0.08)' }}>
-                BUDGET UNLOCKED
-              </span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--lime)', fontSize: 9, border: '1px solid rgba(200,255,58,0.4)', padding: '2px 8px', background: 'rgba(200,255,58,0.08)' }}>
+                <span className="tag">BUDGET UNLOCKED</span>
+                {hasUnallocatedBudget && (
+                  <>
+                    <span style={{ opacity: 0.4 }}>·</span>
+                    <Link href="/contracts" style={{ color: 'var(--lime)', textDecoration: 'none', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: 1 }}>
+                      ALLOCATE NOW →
+                    </Link>
+                  </>
+                )}
+              </div>
             )}
             {isSunday && (
               <span className="tag" style={{ color: 'var(--amber)', fontSize: 9, border: '1px solid rgba(255,176,32,0.4)', padding: '2px 8px', background: 'rgba(255,176,32,0.08)' }}>
@@ -351,12 +393,18 @@ export default async function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
         {/* Treasury */}
         <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)', padding: 14 }}>
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>TREASURY</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>TREASURY</span>
+            <InfoTip text="Your starting capital. Grows with royalties, shrinks with signing bonuses and dev spend." />
+          </div>
           <div className="display" style={{ fontSize: 36, color: 'var(--amber)', lineHeight: 1.1, marginTop: 4 }}>{fmtUSD(label.treasury)}</div>
         </div>
         {/* Weekly income */}
         <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)', padding: 14 }}>
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>WEEKLY INCOME</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>WEEKLY INCOME</span>
+            <InfoTip text="Estimated weekly royalties from active contracts, before development spend." />
+          </div>
           {active.length === 0
             ? <div style={{ color: 'var(--ink-mid)', fontSize: 11, marginTop: 8 }}>Sign to start earning</div>
             : <div className="display" style={{ fontSize: 36, color: 'var(--lime)', lineHeight: 1.1, marginTop: 4 }}>{fmtUSD(weeklyIncomeEst)}</div>
@@ -365,7 +413,10 @@ export default async function DashboardPage() {
         </div>
         {/* Reputation */}
         <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)', padding: 14 }}>
-          <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>REPUTATION</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>REPUTATION</span>
+            <InfoTip text="Unlocks better data at 250 pts (Established) and deeper insights at 600 pts (Veteran). Grows when contracts complete naturally." />
+          </div>
           <div className="display" style={{ fontSize: 36, color: rep.color, lineHeight: 1.1, marginTop: 4 }}>{label.reputation}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <div style={{ flex: 1, height: 3, background: 'var(--line)', borderRadius: 2 }}>
@@ -373,6 +424,11 @@ export default async function DashboardPage() {
             </div>
             <span className="tag" style={{ color: rep.color, fontSize: 8 }}>{rep.label}</span>
           </div>
+          {label.reputation < 600 && (
+            <div className="tag" style={{ color: 'var(--cyan)', fontSize: 8, marginTop: 3 }}>
+              {rep.next - label.reputation} PTS TO {label.reputation < 250 ? 'ESTABLISHED' : 'VETERAN'}
+            </div>
+          )}
         </div>
         {/* Roster */}
         <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--line)', padding: 14 }}>
@@ -385,6 +441,24 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Breaking alert banner ──────────────────────────────────────────── */}
+      {latestBreakingAlert && breakingAlertSpotifyId && (
+        <div style={{ background: 'rgba(200,255,58,0.06)', border: '1px solid rgba(200,255,58,0.35)', padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, letterSpacing: 1 }}>BREAKING ALERT</div>
+            <div style={{ color: 'var(--ink-hi)', fontSize: 11, marginTop: 2 }}>
+              {latestBreakingAlert.artist_name} is surging this week.
+            </div>
+          </div>
+          <Link
+            href={`/artist/${breakingAlertSpotifyId}`}
+            style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--lime)', border: '1px solid rgba(200,255,58,0.4)', padding: '4px 10px', textDecoration: 'none', whiteSpace: 'nowrap', marginLeft: 12 }}
+          >
+            VIEW →
+          </Link>
+        </div>
+      )}
 
       {/* ── Expired contracts banner ────────────────────────────────────────── */}
       {expired.length > 0 && (
@@ -422,9 +496,14 @@ export default async function DashboardPage() {
             <Link href="/contracts" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--ink-low)', textDecoration: 'none' }}>MANAGE →</Link>
           </div>
           {active.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ color: 'var(--ink-mid)', fontSize: 13, marginBottom: 16 }}>Your roster is empty</div>
-              <Link href="/search" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 20px', border: '2px solid var(--lime)', color: 'var(--lime)', textDecoration: 'none' }}>SIGN YOUR FIRST ARTIST</Link>
+            <div style={{ padding: '14px 16px', background: 'rgba(200,255,58,0.04)', border: '2px solid rgba(200,255,58,0.35)', margin: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, letterSpacing: 1 }}>SIGN YOUR FIRST ARTIST</div>
+                <div style={{ color: 'var(--ink-mid)', fontSize: 11, marginTop: 3 }}>Find one on Search to start earning royalties.</div>
+              </div>
+              <Link href="/search" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, color: 'var(--lime)', border: '1px solid rgba(200,255,58,0.4)', padding: '4px 10px', textDecoration: 'none', whiteSpace: 'nowrap', marginLeft: 12 }}>
+                SEARCH →
+              </Link>
             </div>
           ) : active.map(c => {
             const wl = weeksLeft(c.end_date)
