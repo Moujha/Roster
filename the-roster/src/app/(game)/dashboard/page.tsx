@@ -74,12 +74,20 @@ async function getData() {
   const lagDate = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10)
 
   // ── Pass 1: core data ────────────────────────────────────────────────────────
-  const [labelRes, contractsRes, eventsRes, scoutsRes, latestDateRes] = await Promise.all([
+  const [labelRes, contractsRes, eventsRes, scoutsRes, latestDateRes, latestAlertRes] = await Promise.all([
     supabase.from('labels').select('*').eq('id', user.id).single(),
     supabase.from('contracts').select('*, artists(name, tier, spotify_id)').eq('label_id', user.id).order('created_at', { ascending: false }),
     supabase.from('label_events').select('*').eq('label_id', user.id).order('created_at', { ascending: false }).limit(8),
     supabase.from('scouts').select('*, artists(name, tier, spotify_id)').eq('label_id', user.id).order('completes_at', { ascending: true }).limit(12),
     supabase.from('artist_stats_daily').select('date').lte('date', lagDate).order('date', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('label_events')
+      .select('artist_name, payload, created_at')
+      .eq('label_id', user.id)
+      .eq('event_type', 'breaking_alert')
+      .gte('created_at', new Date(Date.now() - 48 * 3600_000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   if (!labelRes.data) redirect('/onboarding')
@@ -170,11 +178,8 @@ async function getData() {
   const discoveryRows = (discoveryRes.data ?? []) as unknown as DiscoveryRow[]
   const signedArtistIds = new Set(activeArtistIds)
 
-  // Breaking alert: check recent events first, fall back to targeted lookup
-  const cutoff48h = new Date(Date.now() - 48 * 3600_000)
-  const latestBreakingAlert = events.find(
-    e => e.event_type === 'breaking_alert' && new Date(e.created_at) > cutoff48h,
-  ) ?? null
+  // Breaking alert: dedicated query — not limited by the 8-event general feed cap
+  const latestBreakingAlert = latestAlertRes.data ?? null
 
   let breakingAlertSpotifyId: string | null = null
   if (latestBreakingAlert) {
