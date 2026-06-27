@@ -151,11 +151,15 @@ export default async function ArtistProfilePage({
       }
     : null
 
-  const [activeContractsRes, spotifyData] = await Promise.all([
+  const [activeContractsRes, spotifyData, activeContractRow] = await Promise.all([
     supabase.from('contracts').select('id', { count: 'exact', head: false })
       .eq('label_id', user.id).eq('status', 'active'),
     fetchSpotifyArtistData(spotifyId),
+    supabase.from('contracts').select('id')
+      .eq('label_id', user.id).eq('artist_id', artist.id).eq('status', 'active')
+      .maybeSingle().then(r => r.data),
   ])
+  const isContracted = !!activeContractRow
 
   return (
     <ArtistProfileClient
@@ -177,6 +181,7 @@ export default async function ArtistProfilePage({
       competitorScoutCount={competitorScoutCount}
       genreTrend={genreTrend}
       regionalBreakout={regionalBreakout}
+      isContracted={isContracted}
     />
   )
 }

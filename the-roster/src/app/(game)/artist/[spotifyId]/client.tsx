@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Artist, ArtistStats, Label, Scout } from '@/lib/types'
 import type { SpotifyEnrichment, SpotifyRelease } from '@/lib/spotify'
+import { InfoTip } from '@/components/info-tip'
 
 const TIER_COLORS: Record<string, string> = {
   underground: 'var(--violet)', emerging: 'var(--lime)',
@@ -272,7 +273,7 @@ type CounterOffer = {
 export default function ArtistProfileClient({
   artist, stats, spark, signedByCount, undergroundSignal, label, rosterCount,
   scout, activeScoutCount, scoutReport, spotifyData, isWatching, watchers, watcherCount,
-  labelReputation, competitorScoutCount, genreTrend, regionalBreakout,
+  labelReputation, competitorScoutCount, genreTrend, regionalBreakout, isContracted,
 }: {
   artist: Artist
   stats: ArtistStats | null
@@ -292,6 +293,7 @@ export default function ArtistProfileClient({
   competitorScoutCount: number
   genreTrend: { genreAvgVelocity: number; artistCount: number } | null
   regionalBreakout: boolean
+  isContracted: boolean
 }) {
   const router = useRouter()
   const tierColor = TIER_COLORS[artist.tier] ?? 'var(--ink-mid)'
@@ -320,14 +322,7 @@ export default function ArtistProfileClient({
   const [acceptedViaCounter, setAcceptedViaCounter] = useState(false)
   const [rejectionType, setRejectionType] = useState<'outright' | 'round2' | 'cooldown'>('outright')
   const [showFirstSignMemo, setShowFirstSignMemo] = useState(false)
-  const [showMomentumTooltip, setShowMomentumTooltip] = useState(false)
   const negRound = negId ? 2 : 1
-
-  useEffect(() => {
-    if (!undergroundSignal && !localStorage.getItem('roster_momentum_tooltip_seen')) {
-      setShowMomentumTooltip(true)
-    }
-  }, [undergroundSignal])
 
   // Waiting interstitial — stores resolved outcome until delay elapses
   const [pendingPhase, setPendingPhase] = useState<NegPhase | null>(null)
@@ -578,12 +573,18 @@ export default function ArtistProfileClient({
           ) : stats?.momentum_score != null ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div>
-                <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>MOMENTUM</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                  <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>MOMENTUM</span>
+                  <InfoTip text="Combines streaming growth, listener momentum, and catalog depth. Higher = more heat right now." />
+                </div>
                 <MomentumRing score={Math.round(stats.momentum_score)} />
               </div>
               {labelReputation >= 250 && stats.stream_velocity_7d != null && (
                 <div>
-                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>7D VELOCITY</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>7D VELOCITY</span>
+                    <InfoTip text="% change in top-10 daily streams vs. 7 days ago. Primary momentum signal." />
+                  </div>
                   <div className="display" style={{ fontSize: 22, color: stats.stream_velocity_7d >= 0 ? 'var(--lime)' : 'var(--rose)', lineHeight: 1 }}>
                     {stats.stream_velocity_7d >= 0 ? '+' : ''}{stats.stream_velocity_7d.toFixed(1)}%
                   </div>
@@ -591,7 +592,10 @@ export default function ArtistProfileClient({
               )}
               {labelReputation >= 250 && stats.catalog_depth_score != null && (
                 <div>
-                  <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>CATALOG DEPTH</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>CATALOG DEPTH</span>
+                    <InfoTip text="How evenly streams spread across top 10 tracks. Higher = more durable audience, less reliance on one hit." />
+                  </div>
                   <div className="display" style={{ fontSize: 22, color: 'var(--cyan)', lineHeight: 1 }}>
                     {stats.catalog_depth_score.toFixed(0)}
                   </div>
@@ -602,7 +606,10 @@ export default function ArtistProfileClient({
                 const engaged = ratio >= 0.15
                 return (
                   <div>
-                    <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>STREAMS/LISTENER</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <span className="tag" style={{ color: 'var(--ink-low)', fontSize: 9 }}>STREAMS/LISTENER</span>
+                      <InfoTip text="Daily streams ÷ monthly listeners. Above 0.15 signals a highly engaged fanbase." />
+                    </div>
                     <div className="display" style={{ fontSize: 22, color: engaged ? 'var(--lime)' : 'var(--violet)', lineHeight: 1 }}>
                       {ratio.toFixed(2)}
                     </div>
@@ -684,6 +691,36 @@ export default function ArtistProfileClient({
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Scout nudge — shown when no scout and not contracted */}
+      {!scout && !isContracted && (
+        <div style={{
+          background: 'rgba(62,224,255,0.05)', border: '1px solid rgba(62,224,255,0.25)',
+          padding: '10px 14px', marginBottom: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div>
+            <div className="tag" style={{ color: 'var(--cyan)', fontSize: 9, letterSpacing: 1 }}>SCOUT FOR DETAILED INTEL</div>
+            <div style={{ color: 'var(--ink-mid)', fontSize: 10, marginTop: 3 }}>
+              A scout report reveals negotiation priorities and a precise bonus estimate — before you make an offer.
+            </div>
+          </div>
+          <button
+            onClick={handleScout}
+            disabled={scouting || activeScoutCount >= 8}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9,
+              color: 'var(--cyan)', border: '1px solid rgba(62,224,255,0.4)',
+              padding: '4px 10px', background: 'transparent',
+              cursor: scouting || activeScoutCount >= 8 ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap', marginLeft: 12,
+              opacity: activeScoutCount >= 8 ? 0.4 : 1,
+            }}
+          >
+            {scouting ? '...' : 'DEPLOY →'}
+          </button>
         </div>
       )}
 
@@ -881,7 +918,6 @@ export default function ArtistProfileClient({
 
             {/* ── ACT 1 → WAITING → RESULT → OFFER FORM ── */}
             {negPhase === 'reading' ? ((() => {
-              const tags = buildSignalTags(artist, stats, scoutReport, signedByCount, labelReputation)
               const narrative = generateNarrative(artist, stats, scoutReport, undergroundSignal, labelReputation)
               const vColor = stats?.stream_velocity_7d != null
                 ? (stats.stream_velocity_7d >= 0 ? 'var(--lime)' : 'var(--rose)')
@@ -916,50 +952,13 @@ export default function ArtistProfileClient({
                           : '—'}
                       </div>
                     </div>
-                    <div style={{ position: 'relative' }}>
+                    <div>
                       <div className="tag" style={{ color: 'var(--ink-low)', fontSize: 9, marginBottom: 4 }}>MOMENTUM</div>
                       <div className="display" style={{ fontSize: 22, color: undergroundSignal ? 'var(--ink-low)' : 'var(--lime)', lineHeight: 1 }}>
                         {undergroundSignal ? 'N/A' : stats?.momentum_score != null ? stats.momentum_score.toFixed(0) : '—'}
                       </div>
-                      {showMomentumTooltip && (
-                        <div
-                          style={{
-                            position: 'absolute', top: '100%', left: 0, zIndex: 10,
-                            background: 'var(--bg-panel)', border: '1px solid var(--lime)',
-                            padding: '10px 12px', width: 220, marginTop: 8,
-                          }}
-                        >
-                          <div style={{ color: 'var(--ink-hi)', fontSize: 11, lineHeight: 1.6, marginBottom: 8 }}>
-                            Combines streaming growth, listener momentum, and catalog depth. Higher = more heat right now.
-                          </div>
-                          <button
-                            onClick={() => { localStorage.setItem('roster_momentum_tooltip_seen', '1'); setShowMomentumTooltip(false) }}
-                            style={{
-                              fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9,
-                              padding: '4px 10px', border: '1px solid var(--lime)',
-                              color: 'var(--lime)', background: 'transparent', cursor: 'pointer', letterSpacing: 1,
-                            }}
-                          >GOT IT</button>
-                        </div>
-                      )}
                     </div>
                   </div>
-
-                  {/* Signal tags */}
-                  {tags.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 16 }}>
-                      {tags.map((tag, i) => (
-                        <span key={i} className="tag" style={{
-                          fontSize: 9, padding: '3px 8px',
-                          color: tag.scout ? '#60a5fa' : 'var(--ink-mid)',
-                          border: `1px solid ${tag.scout ? 'rgba(96,165,250,0.4)' : 'var(--line)'}`,
-                          background: tag.scout ? 'rgba(96,165,250,0.08)' : 'var(--bg-tile)',
-                        }}>
-                          {tag.text}
-                        </span>
-                      ))}
-                    </div>
-                  )}
 
                   {/* Narrative paragraph */}
                   <div style={{
