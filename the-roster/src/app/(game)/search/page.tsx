@@ -209,8 +209,10 @@ export default async function SearchPage({
   if (!user) return null
   const { q } = await searchParams
 
-  const scoutData = await supabase
-    .from('scouts').select('artist_id').eq('label_id', user.id).is('completed_at', null)
+  const [scoutData, { count: activeContractCount }] = await Promise.all([
+    supabase.from('scouts').select('artist_id').eq('label_id', user.id).is('completed_at', null),
+    supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('label_id', user.id).eq('status', 'active'),
+  ])
   const activeScoutIds = new Set((scoutData.data ?? []).map(s => s.artist_id))
 
   let searchResults: Artist[] = []
@@ -244,6 +246,14 @@ export default async function SearchPage({
 
       {!q && onRamps && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          {(activeContractCount ?? 0) === 0 && (
+            <div style={{ background: 'rgba(200,255,58,0.04)', border: '1px solid rgba(200,255,58,0.3)', padding: '12px 16px' }}>
+              <div className="tag" style={{ color: 'var(--lime)', fontSize: 9, letterSpacing: 1 }}>START HERE</div>
+              <div style={{ color: 'var(--ink-mid)', fontSize: 11, marginTop: 3 }}>
+                Browse the picks below or search by name. Sign your first artist to start earning royalties.
+              </div>
+            </div>
+          )}
           {onRamps.trending && (
             <section>
               <div className="tag" style={{ color: 'var(--lime)', fontSize: 10, marginBottom: 12 }}>
