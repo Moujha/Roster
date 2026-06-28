@@ -686,20 +686,30 @@ export default function ArtistProfileClient({
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => { setShowModal(true); setNegPhase('reading') }}
-          disabled={!canSign}
-          style={{
+        {isContracted ? (
+          <div style={{
             fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 20px',
-            border: `2px solid ${canSign ? 'var(--lime)' : 'var(--line)'}`,
-            color: canSign ? 'var(--lime)' : 'var(--ink-low)',
-            background: canSign ? 'rgba(200,255,58,0.08)' : 'transparent',
-            cursor: canSign ? 'pointer' : 'not-allowed',
-            letterSpacing: 1,
-          }}
-        >
-          {rosterCount >= 5 ? 'ROSTER FULL' : artist.tier === 'major' ? 'NOT SIGNABLE' : 'MAKE AN OFFER'}
-        </button>
+            border: '2px solid var(--line)', color: 'var(--lime)', letterSpacing: 1,
+            background: 'rgba(200,255,58,0.04)',
+          }}>
+            ON YOUR ROSTER
+          </div>
+        ) : (
+          <button
+            onClick={() => { setShowModal(true); setNegPhase('reading') }}
+            disabled={!canSign}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: 9, padding: '10px 20px',
+              border: `2px solid ${canSign ? 'var(--lime)' : 'var(--line)'}`,
+              color: canSign ? 'var(--lime)' : 'var(--ink-low)',
+              background: canSign ? 'rgba(200,255,58,0.08)' : 'transparent',
+              cursor: canSign ? 'pointer' : 'not-allowed',
+              letterSpacing: 1,
+            }}
+          >
+            {rosterCount >= 5 ? 'ROSTER FULL' : artist.tier === 'major' ? 'NOT SIGNABLE' : 'MAKE AN OFFER'}
+          </button>
+        )}
         {spotifyData?.spotify_url && (
           <a
             href={spotifyData.spotify_url}
