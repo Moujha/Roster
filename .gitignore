@@ -11,3 +11,6 @@ coverage/
 prisma/migrations/dev.db
 *.db
 .turbo/
+__pycache__/
+*.pyc
+*.docx
