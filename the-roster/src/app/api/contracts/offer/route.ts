@@ -219,5 +219,24 @@ async function createContract(
       .is('completed_at', null),
   ])
 
+  // Auto-create a completed scout if the player signed without scouting first
+  const { data: existingScout } = await supabase
+    .from('scouts')
+    .select('id')
+    .eq('label_id', labelId)
+    .eq('artist_id', artist.id)
+    .maybeSingle()
+
+  if (!existingScout) {
+    await supabase.from('scouts').insert({
+      label_id: labelId,
+      artist_id: artist.id,
+      started_at: today,
+      completes_at: today,
+      completed_at: today,
+      is_discovery: false,
+    })
+  }
+
   return contract
 }
